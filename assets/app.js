@@ -3,6 +3,9 @@ const routes = [
   "proposal","editor","financing","calculator","adjust","handoff",
   "survey","cad","trueup","permitting","install","inspection","pto","turnon","commissioning","pipeline","contractor"
 ];
+const stageRoutes = ["survey","cad","trueup","permitting","install","inspection","pto","turnon","commissioning"]; 
+let lastContractorTab = 'c-overview';
+let nextContractorTab = null; // used for back-to-board flow
 function showRoute(id){
   document.querySelectorAll('.route').forEach(s=>s.hidden=true);
   const el = document.getElementById(id) || document.getElementById('proposal');
@@ -11,6 +14,8 @@ function showRoute(id){
   document.querySelectorAll('.sidebar .nav-link').forEach(a=>{
     a.classList.toggle('active', a.getAttribute('href') === `#${id}`);
   });
+  // show/hide backbar for stage pages
+  const back = document.getElementById('backbar'); if(back) back.hidden = !stageRoutes.includes(id);
 }
 window.addEventListener('hashchange',()=>{
   const id = location.hash.replace('#','') || 'proposal';
@@ -110,6 +115,8 @@ document.querySelectorAll('[data-tabs]').forEach(group=>{
       const name = tab.dataset.tab;
       document.querySelectorAll('.tabpane').forEach(p=>p.classList.remove('active'));
       document.getElementById(`tab-${name}`)?.classList.add('active');
+      // track last contractor tab
+      if(group.id==='contractor-tabs') lastContractorTab = name;
     });
   });
 });
@@ -408,6 +415,16 @@ document.getElementById('ch-contractor')?.addEventListener('change', ()=>renderK
 document.getElementById('ch-filter')?.addEventListener('input', renderContractorList);
 document.getElementById('ch-contractor')?.addEventListener('change', renderContractorList);
 
+// Backbar actions
+document.getElementById('back-home')?.addEventListener('click',()=>{
+  nextContractorTab = lastContractorTab; // preserve
+  location.hash = '#contractor';
+});
+document.getElementById('back-board')?.addEventListener('click',()=>{
+  nextContractorTab = 'c-board';
+  location.hash = '#contractor';
+});
+
 // Move-select handler
 document.body.addEventListener('change',(e)=>{
   const sel = e.target.closest('select.move-select');
@@ -418,12 +435,24 @@ document.body.addEventListener('change',(e)=>{
 // Render when visiting route
 window.addEventListener('hashchange',()=>{
   if(location.hash==='#pipeline') renderKanbanAt('kanban','pipe-filter','pipe-contractor');
-  if(location.hash==='#contractor') { renderKanbanAt('kanban-home','ch-filter','ch-contractor'); renderContractorDashboard(); renderContractorList(); updateNavBadges(); }
+  if(location.hash==='#contractor') { 
+    renderKanbanAt('kanban-home','ch-filter','ch-contractor'); 
+    renderContractorDashboard(); 
+    renderContractorList(); 
+    updateNavBadges(); 
+    renderContractorRightPane();
+    // honor pending tab switch
+    if(nextContractorTab){
+      const el = document.querySelector(`#contractor-tabs .tab[data-tab="${nextContractorTab}"]`);
+      el?.click();
+      nextContractorTab = null;
+    }
+  }
   if(location.hash==='#financing') applyDefaultsToFinancing();
   if(location.hash==='#calculator') applyDefaultsToCalculator();
 });
 if(location.hash==='#pipeline') renderKanbanAt('kanban','pipe-filter','pipe-contractor');
-if(location.hash==='#contractor') { renderKanbanAt('kanban-home','ch-filter','ch-contractor'); renderContractorDashboard(); renderContractorList(); updateNavBadges(); }
+if(location.hash==='#contractor') { renderKanbanAt('kanban-home','ch-filter','ch-contractor'); renderContractorDashboard(); renderContractorList(); updateNavBadges(); renderContractorRightPane(); }
 if(location.hash==='#financing') applyDefaultsToFinancing();
 if(location.hash==='#calculator') applyDefaultsToCalculator();
 
@@ -464,4 +493,40 @@ function updateNavBadges(){
   const total = jobs.length;
   const pipe = document.getElementById('badge-pipe'); if(pipe) pipe.textContent = String(total);
   const ctr = document.getElementById('badge-ctr'); if(ctr) ctr.textContent = String(total);
+}
+
+// Phase list in right pane
+function renderPhaseList(){
+  const host = document.getElementById('phase-list'); if(!host) return;
+  host.innerHTML = '';
+  PIPE_STAGES.forEach(s=>{
+    const count = jobs.filter(j=>j.stage===s.id).length;
+    const item = document.createElement('li'); item.className = 'phase-item';
+    item.innerHTML = `
+      <div>
+        <div class="row between"><strong>${s.title}</strong><span class="meta">${count} jobs</span></div>
+        <div class="phase-progress"><span style="width:${Math.min(100, (count/((s.wip||6)))*100)}%"></span></div>
+      </div>
+      <div class="row gap">
+        <button class="btn sm" data-phase-open="${s.id}">Open</button>
+        <button class="btn sm" data-phase-board="${s.id}">Board</button>
+      </div>`;
+    host.appendChild(item);
+  });
+}
+
+document.body.addEventListener('click',(e)=>{
+  const open = e.target.closest('[data-phase-open]');
+  if(open){ location.hash = '#' + open.dataset.phaseOpen; return; }
+  const board = e.target.closest('[data-phase-board]');
+  if(board){
+    document.querySelector('#contractor-tabs .tab[data-tab="c-board"]').click();
+    // no direct filter per lane; guide user visually
+    document.getElementById('kanban-home')?.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+});
+
+// Integrate renders
+function renderContractorRightPane(){
+  renderPhaseList();
 }
