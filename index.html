@@ -39,25 +39,20 @@
             <div class="group-title" id="group-contractor" data-collapsible><span class="caret">▾</span> Contractor</div>
             <ul class="group-list">
               <li><a href="#contractor" id="nav-contractor" class="nav-link indent" title="Contractor Home"><span class="nav-ic">🏠</span><span class="nav-label">Home</span><span class="nav-badge" id="badge-ctr"></span></a></li>
-              <li><a href="#pipeline" id="nav-pipeline" class="nav-link indent" title="Pipeline"><span class="nav-ic">🗂️</span><span class="nav-label">Pipeline (Kanban)</span><span class="nav-badge" id="badge-pipe"></span></a></li>
-              <li><a href="#survey" class="nav-link indent">Site Survey</a></li>
-              <li><a href="#cad" class="nav-link indent">CAD / Engineering</a></li>
-              <li><a href="#trueup" class="nav-link indent">True Up</a></li>
-              <li><a href="#permitting" class="nav-link indent">Permitting</a></li>
-              <li><a href="#install" class="nav-link indent">Installation</a></li>
-              <li><a href="#inspection" class="nav-link indent">Inspection</a></li>
-              <li><a href="#pto" class="nav-link indent">PTO</a></li>
-              <li><a href="#turnon" class="nav-link indent">System Turn‑On</a></li>
-              <li><a href="#commissioning" class="nav-link indent">Commissioning</a></li>
             </ul>
           </li>
         </ul>
       </nav>
 
       <main class="content">
+        <div id="backbar" class="backbar row gap" hidden>
+          <button class="btn sm" id="back-home">← Contractor Home</button>
+          <button class="btn sm" id="back-board">← Board</button>
+        </div>
         <!-- Contractor Home -->
         <section id="contractor" class="route" hidden>
-          <div class="layout onecol">
+          <div class="layout twocol-right">
+            <section class="panel">
             <div class="row between" style="margin-bottom:8px">
               <h2>Contractor Home</h2>
               <div class="row gap">
@@ -109,6 +104,19 @@
                 <div class="card"><p>Reports (placeholder)</p></div>
               </div>
             </div>
+            </section>
+            <aside class="panel">
+              <div class="card leaf">
+                <h3>Phases</h3>
+                <ol class="phase-list" id="phase-list">
+                  <!-- phases injected -->
+                </ol>
+              </div>
+              <div class="card">
+                <h3>Quick Actions</h3>
+                <div class="row gap"><button class="btn sm" data-phase-board="permitting">View Permitting on Board</button><button class="btn sm" data-phase-board="install">View Installation on Board</button></div>
+              </div>
+            </aside>
           </div>
         </section>
 
