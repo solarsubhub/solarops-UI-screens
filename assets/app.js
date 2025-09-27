@@ -14,17 +14,31 @@ function showRoute(id){
   document.querySelectorAll('.sidebar .nav-link').forEach(a=>{
     a.classList.toggle('active', a.getAttribute('href') === `#${id}`);
   });
-  // show/hide backbar for stage pages
-  const back = document.getElementById('backbar'); if(back) back.hidden = !stageRoutes.includes(id);
+  updateBackbar();
 }
+function updateBackbar(){
+  const back = document.getElementById('backbar'); if(!back) return;
+  const id = (location.hash||'#').replace('#','');
+  const show = stageRoutes.includes(id);
+  back.hidden = !show;
+  document.body.classList.toggle('show-backbar', show);
+}
+
 window.addEventListener('hashchange',()=>{
   const id = location.hash.replace('#','') || 'proposal';
   if(routes.includes(id)) showRoute(id);
+  updateBackbar();
 });
 showRoute((location.hash||'#proposal').replace('#',''));
+updateBackbar();
 
 // Toast helper
 function toast(msg){
+  const t = document.getElementById('toast');
+  if(!t) return;
+  t.textContent = msg; t.hidden = false;
+  setTimeout(()=> t.hidden = true, 2200);
+}
 // Sidebar collapse toggle
 document.getElementById('nav-toggle')?.addEventListener('click',()=>{
   document.body.classList.toggle('nav-collapsed');
@@ -41,20 +55,60 @@ document.querySelectorAll('[data-collapsible]')?.forEach(el=>{
   });
 });
 
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.hidden = false;
-  setTimeout(()=> t.hidden = true, 2200);
-}
-
 // Proposal Creation interactivity
 const markBtn = document.getElementById('mark-preflight');
-const analysisBtn = document.getElementById('start-analysis');
 const analysisStatus = document.getElementById('analysis-status');
 const packageCards = document.getElementById('package-cards');
+const reviewCard = document.getElementById('review-card');
+const preflightCard = document.getElementById('preflight-card');
+const propPrev = document.getElementById('prop-prev');
+const propNext = document.getElementById('prop-next');
+const propProgress = document.getElementById('prop-progress');
+const stepper = document.getElementById('proposal-stepper');
 const kpiKw = document.getElementById('kpi-kw');
 const kpiKwh = document.getElementById('kpi-kwh');
 const kpiMonthly = document.getElementById('kpi-monthly');
 const kpiSavings = document.getElementById('kpi-savings');
+
+// ---- Versioning (Save Version) ----
+const VSTORE_KEY = 'ssh_versions';
+function loadVersions(){
+  try{ return JSON.parse(localStorage.getItem(VSTORE_KEY)||'[]'); }catch{ return []; }
+}
+function saveVersions(list){
+  localStorage.setItem(VSTORE_KEY, JSON.stringify(list));
+}
+function makeVersion(){
+  const when = new Date();
+  const tierName = (typeof chosenTier==='string' && chosenTier) ? (chosenTier.charAt(0).toUpperCase()+chosenTier.slice(1)) : 'Comfort';
+  return {
+    id: 'v'+String(Date.now()).slice(-6),
+    when: when.toISOString(),
+    label: `${tierName} • ${appState.kw} kW • ~$${appState.monthly}/mo`,
+    kw: appState.kw, kwh: appState.kwh, capex: appState.capex, monthly: appState.monthly, tier: tierName
+  };
+}
+function renderVersionList(){
+  const ul = document.getElementById('version-list'); if(!ul) return;
+  const items = loadVersions();
+  if(items.length===0){ ul.innerHTML = '<li>No saved versions yet</li>'; return; }
+  ul.innerHTML = '';
+  items.slice().reverse().forEach(v=>{
+    const li = document.createElement('li');
+    const dt = new Date(v.when).toLocaleString();
+    li.innerHTML = `${v.id} • ${v.label} <small style="color:#64748B">(${dt})</small>`;
+    ul.appendChild(li);
+  });
+}
+document.querySelector('[data-action="save-version"]')?.addEventListener('click',()=>{
+  const list = loadVersions();
+  const v = makeVersion();
+  list.push(v); saveVersions(list); renderVersionList();
+  toast('Version saved');
+});
+document.querySelector('[data-action="export-pdf"]')?.addEventListener('click',()=>{
+  window.print();
+});
 
 // Shared app state to pipe defaults into Financing/Calculator
 const appState = {
@@ -65,30 +119,68 @@ const appState = {
   util: 180
 };
 
-markBtn?.addEventListener('click',()=>{
-  document.querySelectorAll('#preflight-list li').forEach(li=>{
-    li.textContent = li.textContent.replace(/\s*$/,' ✓');
-  });
-  toast('Preflight complete');
-});
+// Proposal step state machine
+const proposalSteps = ['preflight','analysis','packages','review'];
+let proposalStep = 'preflight';
+let preflightDone = false; let packageChosen = false; let chosenTier = null;
 
-analysisBtn?.addEventListener('click',()=>{
-  analysisStatus.hidden = false;
-  packageCards.hidden = true;
-  // simulate async
+function setProposalStep(step){
+  proposalStep = step;
+  // body step class for robust show/hide in CSS
+  document.body.classList.remove('step-preflight','step-analysis','step-packages','step-review');
+  document.body.classList.add('step-'+step);
+  // Always hide contractor backbar while on Proposal
+  const backbar = document.getElementById('backbar'); if(backbar) backbar.hidden = true;
+  const showMap = (step==='analysis' || step==='packages' || step==='review');
+  document.getElementById('map-canvas').hidden = !showMap;
+  analysisStatus.hidden = (step!=='analysis');
+  packageCards.hidden = (step!=='packages');
+  reviewCard && (reviewCard.hidden = (step!=='review'));
+  preflightCard && (preflightCard.hidden = (step!=='preflight'));
+  // stepper UI
+  if(stepper){
+    [...stepper.querySelectorAll('.step')].forEach(li=>{
+      li.classList.toggle('current', li.dataset.step===step);
+      const idx = proposalSteps.indexOf(li.dataset.step);
+      const currIdx = proposalSteps.indexOf(step);
+      li.style.opacity = idx>currIdx+1 ? 0.5 : 1;
+    });
+  }
+  // nav buttons
+  if(propPrev) propPrev.disabled = (proposalStep==='preflight');
+  let canNext = true;
+  if(step==='preflight') canNext = preflightDone; // require checklist before moving on
+  if(step==='packages') canNext = packageChosen;
+  if(propNext) propNext.disabled = !canNext;
+  if(propNext) propNext.textContent = (step==='review') ? 'Finish' : 'Next';
+  if(propProgress){
+    const pct = ((proposalSteps.indexOf(step)+1)/proposalSteps.length)*100;
+    propProgress.style.width = pct+'%';
+  }
+}
+
+function runAnalysis(){
+  setProposalStep('analysis');
+  analysisStatus.hidden = false; packageCards.hidden = true;
   setTimeout(()=>{
     analysisStatus.hidden = true;
-    // populate KPIs and show packages
     kpiKw.textContent = '7.5';
     kpiKwh.textContent = '11,300';
     kpiMonthly.textContent = '$132';
     kpiSavings.textContent = '28%';
-    packageCards.hidden = false;
-    // update defaults
     appState.kw = 7.5; appState.kwh = 11300; appState.monthly = 132; appState.capex = 21500;
     updateSummaryChips();
+    setProposalStep('packages');
     toast('Site analysis complete');
-  }, 1200);
+  }, 1000);
+}
+
+markBtn?.addEventListener('click',()=>{
+  document.querySelectorAll('#preflight-list li').forEach(li=>{
+    li.textContent = li.textContent.replace(/\s*$/,' ✓');
+  });
+  preflightDone = true; toast('Preflight complete');
+  runAnalysis();
 });
 
 document.querySelectorAll('#package-cards .select-tier').forEach(btn=>{
@@ -102,9 +194,48 @@ document.querySelectorAll('#package-cards .select-tier').forEach(btn=>{
     const monthly = Number((card?.querySelector('[data-field="monthly"]')?.textContent||'0').replace(/[^\d.]/g,''))||appState.monthly;
     appState.kw = kw; appState.kwh = kwh; appState.monthly = monthly;
     updateSummaryChips();
+    packageChosen = true; chosenTier = card?.dataset.tier||'comfort';
     toast(`Selected ${card?.querySelector('h3')?.textContent} as baseline`);
+    if(propNext) propNext.disabled = false;
   });
 });
+
+// Next/Back actions
+propPrev?.addEventListener('click',()=>{
+  const idx = proposalSteps.indexOf(proposalStep);
+  if(idx>0){ setProposalStep(proposalSteps[idx-1]); }
+});
+propNext?.addEventListener('click',()=>{
+  if(proposalStep==='preflight'){ if(!preflightDone) return; runAnalysis(); return; }
+  if(proposalStep==='analysis'){ setProposalStep('packages'); return; }
+  if(proposalStep==='packages'){
+    if(!packageChosen) return;
+    const rev = document.getElementById('review-summary');
+    if(rev){
+      const tierName = (chosenTier||'comfort');
+      const label = tierName.charAt(0).toUpperCase()+tierName.slice(1);
+      rev.textContent = `${label} • ${appState.kw} kW • ~$${appState.monthly}/mo`;
+    }
+    setProposalStep('review'); return;
+  }
+  if(proposalStep==='review'){ location.hash = '#handoff'; return; }
+});
+
+document.getElementById('review-back')?.addEventListener('click',()=> setProposalStep('packages'));
+
+// Stepper click: allow navigating to completed steps only
+stepper?.addEventListener('click',(e)=>{
+  const li = e.target.closest('.step'); if(!li) return;
+  const tgt = li.dataset.step; const tgtIdx = proposalSteps.indexOf(tgt);
+  const maxIdx = preflightDone ? (packageChosen ? 3 : 2) : 0; // 0 preflight, 1 analysis, 2 packages, 3 review
+  if(tgtIdx<=maxIdx){ setProposalStep(tgt); }
+});
+
+function initProposal(){
+  preflightDone = false; packageChosen = false; chosenTier = null;
+  setProposalStep('preflight');
+  const backbar = document.getElementById('backbar'); if(backbar) backbar.hidden = true;
+}
 
 // Tabs in editor
 document.querySelectorAll('[data-tabs]').forEach(group=>{
@@ -151,7 +282,13 @@ refreshMetrics();
 // Financing AI stub
 const credit = document.getElementById('credit');
 const creditVal = document.getElementById('credit-val');
-credit?.addEventListener('input',()=> creditVal.textContent = credit.value);
+credit?.addEventListener('input',()=> { creditVal.textContent = credit.value; resetLenders(); });
+function resetLenders(){ const list = document.getElementById('lender-list'); if(list){ list.hidden = true; list.innerHTML = ''; } }
+['income','dti','down'].forEach(id=>{
+  const el = document.getElementById(id);
+  el?.addEventListener('input',()=>{ el._touched = true; resetLenders(); });
+});
+document.getElementById('goal')?.addEventListener('change',()=> resetLenders());
 document.getElementById('run-ai')?.addEventListener('click',()=>{
   const score = Number(credit?.value||700);
   const goal = document.getElementById('goal').value;
@@ -181,6 +318,7 @@ document.getElementById('run-ai')?.addEventListener('click',()=>{
     `;
     list.appendChild(card);
   });
+  list.hidden = false;
 });
 
 function updateSummaryChips(){
@@ -227,8 +365,8 @@ function applyDefaultsToFinancing(){
   updateSummaryChips();
   // nothing to set except maybe encourage down payment based on capex
   const down = document.getElementById('down'); if(down && !down._touched) down.value = Math.round(appState.capex*0.05);
-  // auto-run recommendations
-  document.getElementById('run-ai')?.click();
+  // hide recommendations until user clicks
+  const list = document.getElementById('lender-list'); if(list){ list.hidden = true; list.innerHTML = ''; }
 }
 
 function applyDefaultsToCalculator(){
@@ -272,7 +410,15 @@ wizard?.addEventListener('click', (e)=>{
 // Generic checklist toggling
 document.body.addEventListener('click',(e)=>{
   const li = e.target.closest('.checklist li[data-check]');
-  if(li){ li.classList.toggle('done'); }
+  if(li){
+    li.classList.toggle('done');
+    // if on preflight, recompute completeness and update Next button
+    if(li.closest('#preflight-list')){
+      const all = [...document.querySelectorAll('#preflight-list li')];
+      preflightDone = all.length>0 && all.every(x=>x.classList.contains('done'));
+      if(proposalStep==='preflight') setProposalStep('preflight');
+    }
+  }
 });
 
 // Survey schedule
@@ -450,11 +596,15 @@ window.addEventListener('hashchange',()=>{
   }
   if(location.hash==='#financing') applyDefaultsToFinancing();
   if(location.hash==='#calculator') applyDefaultsToCalculator();
+  if(location.hash==='#proposal') initProposal();
+  if(location.hash==='#editor') renderVersionList();
 });
 if(location.hash==='#pipeline') renderKanbanAt('kanban','pipe-filter','pipe-contractor');
 if(location.hash==='#contractor') { renderKanbanAt('kanban-home','ch-filter','ch-contractor'); renderContractorDashboard(); renderContractorList(); updateNavBadges(); renderContractorRightPane(); }
 if(location.hash==='#financing') applyDefaultsToFinancing();
 if(location.hash==='#calculator') applyDefaultsToCalculator();
+if(location.hash==='#proposal' || location.hash==='') initProposal();
+if(location.hash==='#editor') renderVersionList();
 
 function renderContractorDashboard(){
   const counts = Object.fromEntries(PIPE_STAGES.map(s=>[s.id, jobs.filter(j=>j.stage===s.id).length]));
