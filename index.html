@@ -150,20 +150,6 @@
                 <li class="step" data-step="packages">Packages</li>
                 <li class="step" data-step="review">Review</li>
               </ol>
-
-              <div class="card">
-                <h3>Preflight Checklist</h3>
-                <ul class="checklist" id="preflight-list">
-                  <li data-item="address">Address available</li>
-                  <li data-item="bills">Utility bills uploaded</li>
-                  <li data-item="usage">Usage data extracted</li>
-                  <li data-item="roof">Roof imagery available</li>
-                </ul>
-                <div class="row gap">
-                  <button class="btn" id="mark-preflight">Mark Complete</button>
-                  <button class="btn primary" id="start-analysis">Start Site Analysis</button>
-                </div>
-              </div>
             </aside>
 
             <section class="panel">
@@ -182,6 +168,19 @@
                 <div class="kpi"><div class="label">Savings vs Utility</div><div class="value" id="kpi-savings">—</div></div>
               </div>
 
+              <div class="card" id="preflight-card">
+                <h3>Preflight Checklist</h3>
+                <ul class="checklist" id="preflight-list">
+                  <li data-item="address" data-check>Address available</li>
+                  <li data-item="bills" data-check>Utility bills uploaded</li>
+                  <li data-item="usage" data-check>Usage data extracted</li>
+                  <li data-item="roof" data-check>Roof imagery available</li>
+                </ul>
+                <div class="row gap">
+                  <button class="btn" id="mark-preflight" hidden>Mark Complete</button>
+                </div>
+              </div>
+
               <div class="cards three" id="package-cards" hidden>
                 <div class="pkg card" data-tier="basic">
                   <div class="badge">Lowest Monthly</div>
@@ -193,7 +192,7 @@
                     <div><small>Monthly</small><div class="big" data-field="monthly">$120</div></div>
                     <div><small>Savings</small><div class="big" data-field="savings">-22%</div></div>
                   </div>
-                  <button class="btn select-tier">Use as Baseline</button>
+                  <button class="btn primary select-tier">Use as Baseline</button>
                 </div>
                 <div class="pkg card recommended" data-tier="comfort">
                   <div class="badge">Best Value</div>
@@ -217,8 +216,20 @@
                     <div><small>Monthly</small><div class="big" data-field="monthly">$140</div></div>
                     <div><small>Savings</small><div class="big" data-field="savings">-35%</div></div>
                   </div>
-                  <button class="btn select-tier">Use as Baseline</button>
+                  <button class="btn primary select-tier">Use as Baseline</button>
                 </div>
+              </div>
+
+              <div class="card" id="review-card" hidden>
+                <h3>Review & Confirm</h3>
+                <p id="review-summary">Choose a package to continue.</p>
+                <div class="row gap"><button class="btn" id="review-back">Back to Packages</button><a class="btn primary" href="#handoff">Proceed to Contractor Handoff</a></div>
+              </div>
+
+              <div class="wizard-nav" id="proposal-nav">
+                <button class="btn" id="prop-prev">Back</button>
+                <div class="progress"><span id="prop-progress" style="width:0%"></span></div>
+                <button class="btn primary" id="prop-next">Next</button>
               </div>
             </section>
           </div>
@@ -549,7 +560,7 @@
                 <input class="input" type="range" id="credit" min="550" max="800" step="10" value="700" />
                 <div class="row between"><small>550</small><small id="credit-val">700</small><small>800</small></div>
               </div>
-              <div class="card grid-2 form-grid">
+              <div class="card form-grid">
                 <label>Income
                   <input class="input" type="number" id="income" value="95000" />
                 </label>
@@ -569,7 +580,7 @@
               <button class="btn primary" id="run-ai">Get Recommendations</button>
             </aside>
             <section class="panel">
-              <div class="cards list" id="lender-list">
+              <div class="cards list" id="lender-list" hidden>
                 <!-- lender cards injected -->
               </div>
             </section>
@@ -681,7 +692,7 @@
                   <li>Utility bills ✓</li>
                   <li>Signed proposal ✓</li>
                 </ul>
-                <button class="btn next">Next</button>
+                <button class="btn primary next">Next</button>
               </div>
               <div class="pane" data-pane="assign" hidden>
                 <h3>Assign Contractor</h3>
@@ -689,12 +700,12 @@
                   <div class="card">SunWorks • SLA 98% • <button class="btn sm select-ctr">Select</button></div>
                   <div class="card">BrightInstall • SLA 95% • <button class="btn sm select-ctr">Select</button></div>
                 </div>
-                <button class="btn next">Next</button>
+                <button class="btn primary next">Next</button>
               </div>
               <div class="pane" data-pane="schedule" hidden>
                 <h3>Schedule</h3>
                 <p>Preferred: Next 2 weeks</p>
-                <button class="btn next">Next</button>
+                <button class="btn primary next">Next</button>
               </div>
               <div class="pane" data-pane="send" hidden>
                 <h3>Review & Send</h3>
