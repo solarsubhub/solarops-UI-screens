@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Solar Sub Hub – Clickable Prototype</title>
+    <link rel="stylesheet" href="assets/styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">
+        <span class="logo">☀️</span>
+        <h1>Solar Sub Hub</h1>
+      </div>
+      <div class="context">
+        <div class="crumbs">Customer • Proposal ID: P-000123</div>
+        <div class="actions">
+          <button class="btn ghost" data-action="save-version">Save Version</button>
+          <button class="btn primary" data-action="export-pdf">Export PDF</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="app-shell">
+      <nav class="sidebar">
+        <ul>
+          <li><a href="#proposal" class="nav-link">Proposal Creation</a></li>
+          <li><a href="#editor" class="nav-link">Proposal Editor</a></li>
+          <li><a href="#financing" class="nav-link">Financing Selection</a></li>
+          <li><a href="#calculator" class="nav-link">Monthly Cost Calculator</a></li>
+          <li><a href="#adjust" class="nav-link">Cost Adjustment</a></li>
+          <li><a href="#handoff" class="nav-link">Contractor Handoff</a></li>
+          <li><hr/></li>
+          <li class="nav-group">
+            <div class="group-title">Contractor</div>
+            <ul class="group-list">
+              <li><a href="#contractor" class="nav-link indent">Home</a></li>
+              <li><a href="#pipeline" class="nav-link indent">Pipeline (Kanban)</a></li>
+              <li><a href="#survey" class="nav-link indent">Site Survey</a></li>
+              <li><a href="#cad" class="nav-link indent">CAD / Engineering</a></li>
+              <li><a href="#trueup" class="nav-link indent">True Up</a></li>
+              <li><a href="#permitting" class="nav-link indent">Permitting</a></li>
+              <li><a href="#install" class="nav-link indent">Installation</a></li>
+              <li><a href="#inspection" class="nav-link indent">Inspection</a></li>
+              <li><a href="#pto" class="nav-link indent">PTO</a></li>
+              <li><a href="#turnon" class="nav-link indent">System Turn‑On</a></li>
+              <li><a href="#commissioning" class="nav-link indent">Commissioning</a></li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+
+      <main class="content">
+        <!-- Contractor Home -->
+        <section id="contractor" class="route" hidden>
+          <div class="layout onecol">
+            <div class="row between" style="margin-bottom:8px">
+              <h2>Contractor Home</h2>
+              <div class="row gap">
+                <input id="ch-filter" placeholder="Filter by name/address" />
+                <select id="ch-contractor">
+                  <option value="">All contractors</option>
+                  <option>SunWorks</option>
+                  <option>BrightInstall</option>
+                </select>
+              </div>
+            </div>
+            <div class="kpis">
+              <div class="kpi"><div class="label">Total Jobs</div><div class="value" id="ctr-total">—</div></div>
+              <div class="kpi"><div class="label">SLA at Risk</div><div class="value" id="ctr-sla">—</div></div>
+              <div class="kpi"><div class="label">Permitting</div><div class="value" id="ctr-permit">—</div></div>
+              <div class="kpi"><div class="label">Installation</div><div class="value" id="ctr-install">—</div></div>
+              <div class="kpi"><div class="label">Inspection</div><div class="value" id="ctr-inspect">—</div></div>
+              <div class="kpi"><div class="label">PTO</div><div class="value" id="ctr-pto">—</div></div>
+            </div>
+            <div class="card">
+              <h3>Upcoming 7 days</h3>
+              <ul id="ctr-upcoming" class="list"><li>—</li></ul>
+            </div>
+            <div class="kanban" id="kanban-home"></div>
+          </div>
+        </section>
+
+        <!-- Pipeline Kanban -->
+        <section id="pipeline" class="route" hidden>
+          <div class="layout onecol">
+            <div class="row between" style="margin-bottom:8px">
+              <h2>Operations Pipeline</h2>
+              <div class="row gap">
+                <input id="pipe-filter" placeholder="Filter by name/address" />
+                <select id="pipe-contractor">
+                  <option value="">All contractors</option>
+                  <option>SunWorks</option>
+                  <option>BrightInstall</option>
+                </select>
+              </div>
+            </div>
+            <div class="kanban" id="kanban">
+              <!-- columns injected -->
+            </div>
+          </div>
+        </section>
+        <!-- Proposal Creation & Integration -->
+        <section id="proposal" class="route">
+          <div class="layout twocol">
+            <aside class="panel">
+              <h2>Proposal Creation</h2>
+              <ol class="stepper" id="proposal-stepper">
+                <li class="step current" data-step="preflight">Preflight</li>
+                <li class="step" data-step="analysis">Site Analysis</li>
+                <li class="step" data-step="packages">Packages</li>
+                <li class="step" data-step="review">Review</li>
+              </ol>
+
+              <div class="card">
+                <h3>Preflight Checklist</h3>
+                <ul class="checklist" id="preflight-list">
+                  <li data-item="address">Address available</li>
+                  <li data-item="bills">Utility bills uploaded</li>
+                  <li data-item="usage">Usage data extracted</li>
+                  <li data-item="roof">Roof imagery available</li>
+                </ul>
+                <div class="row gap">
+                  <button class="btn" id="mark-preflight">Mark Complete</button>
+                  <button class="btn primary" id="start-analysis">Start Site Analysis</button>
+                </div>
+              </div>
+            </aside>
+
+            <section class="panel">
+              <div class="status" id="analysis-status" hidden>
+                <span class="spinner"></span> Analyzing site… ~45s
+              </div>
+
+              <div class="canvas card" id="map-canvas">
+                <div class="canvas-placeholder">Map/Roof Canvas</div>
+              </div>
+
+              <div class="kpis">
+                <div class="kpi"><div class="label">System kW</div><div class="value" id="kpi-kw">—</div></div>
+                <div class="kpi"><div class="label">Est. kWh/yr</div><div class="value" id="kpi-kwh">—</div></div>
+                <div class="kpi"><div class="label">Monthly Payment</div><div class="value" id="kpi-monthly">—</div></div>
+                <div class="kpi"><div class="label">Savings vs Utility</div><div class="value" id="kpi-savings">—</div></div>
+              </div>
+
+              <div class="cards three" id="package-cards" hidden>
+                <div class="pkg card" data-tier="basic">
+                  <div class="badge">Lowest Monthly</div>
+                  <h3>Basic</h3>
+                  <p>Coverage 90% • Std panels</p>
+                  <div class="grid-2">
+                    <div><small>kW</small><div class="big" data-field="kw">6.8</div></div>
+                    <div><small>kWh/yr</small><div class="big" data-field="kwh">10,200</div></div>
+                    <div><small>Monthly</small><div class="big" data-field="monthly">$120</div></div>
+                    <div><small>Savings</small><div class="big" data-field="savings">-22%</div></div>
+                  </div>
+                  <button class="btn select-tier">Use as Baseline</button>
+                </div>
+                <div class="pkg card recommended" data-tier="comfort">
+                  <div class="badge">Best Value</div>
+                  <h3>Comfort</h3>
+                  <p>Coverage 105% • Hi-eff panels</p>
+                  <div class="grid-2">
+                    <div><small>kW</small><div class="big" data-field="kw">7.5</div></div>
+                    <div><small>kWh/yr</small><div class="big" data-field="kwh">11,300</div></div>
+                    <div><small>Monthly</small><div class="big" data-field="monthly">$132</div></div>
+                    <div><small>Savings</small><div class="big" data-field="savings">-28%</div></div>
+                  </div>
+                  <button class="btn primary select-tier">Use as Baseline</button>
+                </div>
+                <div class="pkg card" data-tier="luxury">
+                  <div class="badge">Max Production</div>
+                  <h3>Luxury</h3>
+                  <p>Coverage 120% • Premium + battery</p>
+                  <div class="grid-2">
+                    <div><small>kW</small><div class="big" data-field="kw">8.8</div></div>
+                    <div><small>kWh/yr</small><div class="big" data-field="kwh">13,300</div></div>
+                    <div><small>Monthly</small><div class="big" data-field="monthly">$140</div></div>
+                    <div><small>Savings</small><div class="big" data-field="savings">-35%</div></div>
+                  </div>
+                  <button class="btn select-tier">Use as Baseline</button>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- Site Survey -->
+        <section id="survey" class="route" hidden>
+          <div class="layout twocol">
+            <aside class="panel">
+              <div class="stage-header card">
+                <h2>Site Survey</h2>
+                <div class="row gap"><span class="tag info">Scheduled</span><span class="tag warn">SLA 2d</span></div>
+              </div>
+              <div class="card">
+                <label>Survey Date
+                  <input type="date" id="survey-date" />
+                </label>
+                <label>Technician
+                  <input type="text" id="survey-tech" placeholder="Tech name" />
+                </label>
+                <button class="btn" id="survey-schedule">Save Schedule</button>
+              </div>
+              <div class="card">
+                <h3>Checklist</h3>
+                <ul class="checklist" id="survey-list">
+                  <li data-check>Roof photos A/B/C</li>
+                  <li data-check>MSP rating & spaces</li>
+                  <li data-check>Attic/rafter photos</li>
+                  <li data-check>Conduit path</li>
+                  <li data-check>Customer sign-off</li>
+                </ul>
+              </div>
+            </aside>
+            <section class="panel">
+              <div class="card">
+                <h3>Uploads</h3>
+                <p>Use camera to add photos; for prototype this is a placeholder.</p>
+                <button class="btn">Add Photos</button>
+              </div>
+              <div class="card">
+                <h3>Notes</h3>
+                <textarea rows="6" placeholder="Field notes..."></textarea>
+                <div class="row gap"><button class="btn">Save Notes</button><button class="btn primary">Submit Survey</button></div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- CAD / Engineering -->
+        <section id="cad" class="route" hidden>
+          <div class="layout twocol">
+            <aside class="panel">
+              <div class="stage-header card">
+                <h2>CAD / Engineering</h2>
+                <div class="row gap"><span class="tag info">In Progress</span></div>
+              </div>
+              <div class="card">
+                <h3>AHJ Requirements</h3>
+                <ul class="checklist">
+                  <li data-check>Setbacks verified</li>
+                  <li data-check>Attachment detail</li>
+                  <li data-check>Labeling plan</li>
+                </ul>
+              </div>
+            </aside>
+            <section class="panel">
+              <div class="card">
+                <h3>Plan Set Versions</h3>
+                <ul id="cad-versions"><li>v1 – Draft</li></ul>
+                <div class="row gap"><button class="btn" id="cad-upload">Upload New Plan Set</button><button class="btn primary" id="cad-approve">Approve for True Up</button></div>
+              </div>
+              <div class="card">
+                <h3>BOM</h3>
+                <p>Panels: 24 • Inverters: 1 • Racking: Rail‑X</p>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- True Up -->
+        <section id="trueup" class="route" hidden>
+          <div class="layout twocol">
+            <aside class="panel">
+              <div class="stage-header card">
+                <h2>True Up</h2>
+                <div class="row gap"><span class="tag info">Pending Customer Approval</span></div>
+              </div>
+              <div class="card">
+                <h3>Deltas vs Proposal</h3>
+                <p>kW: +0.3 • Panels: +1 • Production: +3% • Price: +$400</p>
+              </div>
+            </aside>
+            <section class="panel">
+              <div class="card">
+                <h3>Change Order</h3>
+                <table class="table">
+                  <thead><tr><th>Item</th><th>Qty</th><th>Unit $</th><th>Total</th></tr></thead>
+                  <tbody id="co-body">
+                    <tr data-price="350"><td>Extra panel</td><td><input type="number" value="1" min="0" class="co-qty"/></td><td>$350</td><td class="co-total">$350</td></tr>
+                    <tr data-price="120"><td>Racking</td><td><input type="number" value="1" min="0" class="co-qty"/></td><td>$120</td><td class="co-total">$120</td></tr>
+                    <tr data-price="80"><td>Permit revision fee</td><td><input type="number" value="1" min="0" class="co-qty"/></td><td>$80</td><td class="co-total">$80</td></tr>
+                  </tbody>
+                </table>
+                <div class="row between"><strong>Total:</strong><strong id="co-sum">$550</strong></div>
+                <div class="row gap" style="margin-top:8px"><button class="btn">Preview CO</button><button class="btn primary">Send for E‑Sign</button></div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- Permitting -->
+        <section id="permitting" class="route" hidden>
+          <div class="layout twocol">
+            <aside class="panel">
+              <div class="stage-header card">
+                <h2>Permitting</h2>
+                <div class="row gap"><span class="tag info">Submitted</span></div>
+              </div>
+              <div class="card">
+                <h3>Submission</h3>
+                <p>AHJ: San Jose • Fee: $210</p>
+                <button class="btn">Record Payment</button>
+              </div>
+            </aside>
+            <section class="panel">
+              <div class="card">
+                <h3>RFI Thread</h3>
+                <ul id="rfi-list" class="list"><li>Provide roof load calc (posted by AHJ)</li></ul>
+                <div class="row gap"><input id="rfi-text" placeholder="Reply..."/><button class="btn" id="rfi-add">Post</button></div>
+              </div>
+              <div class="card"><h3>Status</h3><p><span class="tag">Submitted</span> → <span class="tag">RFI</span> → <span class="tag success">Approved</span></p></div>
+            </section>
+          </div>
+        </section>
+
+        <!-- Installation -->
+        <section id="install" class="route" hidden>
+          <div class="layout twocol">
+            <aside class="panel">
+              <div class="stage-header card">
+                <h2>Installation</h2>
+                <div class="row gap"><span class="tag info">Scheduled</span></div>
+              </div>
+              <div class="card">
+                <label>Install Date
+                  <input type="date" id="install-date" />
+                </label>
+                <label>Crew
+                  <input type="text" id="install-crew" placeholder="Crew name" />
+                </label>
+                <button class="btn" id="install-save">Save</button>
+              </div>
+            </aside>
+            <section class="panel">
+              <div class="card">
+                <h3>Install Checklist</h3>
+                <ul class="checklist">
+                  <li data-check>Attachments torqued</li>
+                  <li data-check>String map created</li>
+                  <li data-check>Labels applied</li>
+                  <li data-check>As‑built photos</li>
+                </ul>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- Inspection -->
+        <section id="inspection" class="route" hidden>
+          <div class="layout twocol">
+            <aside class="panel">
+              <div class="stage-header card">
+                <h2>Inspection</h2>
+                <div class="row gap"><span class="tag warn">Awaiting</span></div>
+              </div>
+              <div class="card">
+                <label>Inspection Date
+                  <input type="date" id="insp-date" />
+                </label>
+                <div class="row gap"><button class="btn" id="insp-schedule">Schedule</button></div>
+              </div>
+            </aside>
+            <section class="panel">
+              <div class="card">
+                <h3>Punch List</h3>
+                <ul id="punch-list" class="list"></ul>
+                <div class="row gap"><input id="punch-text" placeholder="Add punch item"/><button class="btn" id="punch-add">Add</button></div>
+                <div class="row gap" style="margin-top:8px"><button class="btn success" id="insp-pass">Mark Pass</button><button class="btn" id="insp-fail">Mark Fail</button></div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- PTO -->
+        <section id="pto" class="route" hidden>
+          <div class="layout twocol">
+            <aside class="panel">
+              <div class="stage-header card">
+                <h2>PTO</h2>
+                <div class="row gap"><span class="tag info">Interconnection</span></div>
+              </div>
+              <div class="card">
+                <ul class="checklist">
+                  <li data-check>Interconnection form submitted</li>
+                  <li data-check>Meter set date recorded</li>
+                  <li data-check>PTO letter uploaded</li>
+                </ul>
+              </div>
+            </aside>
+            <section class="panel">
+              <div class="card">
+                <h3>Upload PTO Letter</h3>
+                <button class="btn">Upload</button>
+                <div class="row gap" style="margin-top:8px"><button class="btn primary" id="pto-mark">Mark PTO Received</button></div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- System Turn-On -->
+        <section id="turnon" class="route" hidden>
+          <div class="layout twocol">
+            <aside class="panel">
+              <div class="stage-header card">
+                <h2>System Turn‑On</h2>
+                <div class="row gap"><span class="tag success">Ready</span></div>
+              </div>
+              <div class="card">
+                <ul class="checklist">
+                  <li data-check>App onboarding complete</li>
+                  <li data-check>CTs calibrated</li>
+                  <li data-check>Customer walkthrough</li>
+                </ul>
+              </div>
+            </aside>
+            <section class="panel">
+              <div class="card">
+                <h3>Live Telemetry</h3>
+                <p id="telemetry">— W / — kWh today</p>
+                <button class="btn" id="telemetry-run">Simulate</button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- Commissioning -->
+        <section id="commissioning" class="route" hidden>
+          <div class="layout twocol">
+            <aside class="panel">
+              <div class="stage-header card">
+                <h2>Commissioning</h2>
+                <div class="row gap"><span class="tag info">Closeout</span></div>
+              </div>
+              <div class="card">
+                <h3>Commissions</h3>
+                <p>Sales: $1,200 • Installer: $800</p>
+                <button class="btn">Approve</button>
+              </div>
+            </aside>
+            <section class="panel">
+              <div class="card">
+                <h3>Archive & Warranties</h3>
+                <ul class="checklist">
+                  <li data-check>Invoices paid</li>
+                  <li data-check>Warranty registered</li>
+                  <li data-check>Archive ZIP generated</li>
+                </ul>
+                <button class="btn primary">Finalize Project</button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- Proposal Editor -->
+        <section id="editor" class="route" hidden>
+          <div class="layout twocol">
+            <section class="panel">
+              <div class="canvas card editor-canvas" id="editor-canvas">
+                <div class="canvas-toolbar">
+                  <button class="btn sm" data-tool="add">+ Panel</button>
+                  <button class="btn sm" data-tool="remove">- Panel</button>
+                  <label class="chip"><input type="checkbox" id="lock-tier" checked /> Keep within tier</label>
+                </div>
+                <div class="canvas-placeholder grid">Design Canvas</div>
+              </div>
+              <div class="metrics-bar">
+                <div>kW: <strong id="m-kw">7.5</strong></div>
+                <div>kWh/yr: <strong id="m-kwh">11,300</strong></div>
+                <div>CAPEX: <strong id="m-capex">$21,500</strong></div>
+                <div>Monthly: <strong id="m-monthly">$132</strong></div>
+                <div>Savings: <strong id="m-savings">28%</strong></div>
+                <div>Payback: <strong id="m-payback">9.5y</strong></div>
+              </div>
+            </section>
+            <aside class="panel">
+              <div class="tabs" data-tabs>
+                <button class="tab active" data-tab="components">Components</button>
+                <button class="tab" data-tab="equipment">Equipment</button>
+                <button class="tab" data-tab="versions">Versions</button>
+              </div>
+              <div class="tabpanes">
+                <div class="tabpane active" id="tab-components">
+                  <div class="card"><h3>Roof Faces</h3><p>A, B, C</p></div>
+                  <div class="card"><h3>Panels</h3><p><span id="panel-count">24</span> panels placed</p></div>
+                </div>
+                <div class="tabpane" id="tab-equipment">
+                  <div class="card"><h3>Panels</h3><button class="btn sm">Swap to Hi‑eff</button></div>
+                  <div class="card"><h3>Inverter</h3><button class="btn sm">Use Micro</button></div>
+                </div>
+                <div class="tabpane" id="tab-versions">
+                  <div class="card"><h3>Versions</h3><ul id="version-list"><li>v1 • Comfort baseline</li></ul></div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <!-- Financing Selection -->
+        <section id="financing" class="route" hidden>
+          <div class="layout twocol">
+            <aside class="panel">
+              <h2>AI Financing</h2>
+              <div class="card">
+                <label>Credit Range</label>
+                <input type="range" id="credit" min="550" max="800" step="10" value="700" />
+                <div class="row between"><small>550</small><small id="credit-val">700</small><small>800</small></div>
+              </div>
+              <div class="card grid-2">
+                <label>Income
+                  <input type="number" id="income" value="95000" />
+                </label>
+                <label>DTI %
+                  <input type="number" id="dti" value="28" />
+                </label>
+                <label>Down Payment
+                  <input type="number" id="down" value="2000" />
+                </label>
+                <label>Goal
+                  <select id="goal">
+                    <option value="lowest">Lowest Monthly</option>
+                    <option value="fast">Fastest Payoff</option>
+                  </select>
+                </label>
+              </div>
+              <button class="btn primary" id="run-ai">Get Recommendations</button>
+            </aside>
+            <section class="panel">
+              <div class="cards list" id="lender-list">
+                <!-- lender cards injected -->
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- Monthly Cost Calculator -->
+        <section id="calculator" class="route" hidden>
+          <div class="layout twocol">
+            <aside class="panel">
+              <h2>Monthly Cost</h2>
+              <div class="card">
+                <label>Loan Amount
+                  <input type="number" id="loan-amount" value="21500" />
+                </label>
+                <label>APR %
+                  <input type="number" id="apr" step="0.1" value="5.0" />
+                </label>
+                <label>Term (months)
+                  <input type="number" id="term" value="300" />
+                </label>
+                <label>Avg Utility Bill
+                  <input type="number" id="util" value="180" />
+                </label>
+                <label>Utility Escalation %/yr
+                  <input type="number" id="escalation" step="0.5" value="3.0" />
+                </label>
+              </div>
+              <button class="btn" id="calc-run">Recalculate</button>
+            </aside>
+            <section class="panel">
+              <div class="kpis">
+                <div class="kpi"><div class="label">Solar Payment</div><div class="value" id="c-solar">$—</div></div>
+                <div class="kpi"><div class="label">New Utility</div><div class="value" id="c-newutil">$—</div></div>
+                <div class="kpi"><div class="label">Net Monthly</div><div class="value" id="c-net">$—</div></div>
+                <div class="kpi"><div class="label">Savings</div><div class="value" id="c-save">—%</div></div>
+              </div>
+              <div class="card charts">
+                <div class="barcompare">
+                  <div class="bar" id="bar-before"><span>Before: $180</span></div>
+                  <div class="bar" id="bar-after"><span>After: $—</span></div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- Cost Adjustment -->
+        <section id="adjust" class="route" hidden>
+          <div class="layout onecol">
+            <div class="card">
+              <h2>Target Monthly</h2>
+              <input type="range" id="target" min="80" max="180" value="130" />
+              <div class="row between"><small>$80</small><strong id="target-val">$130</strong><small>$180</small></div>
+            </div>
+            <div class="cards three" id="suggestions">
+              <div class="card suggest" data-delta="-10">
+                <h3>Reduce system 2 panels</h3>
+                <p>Monthly -$10 • Production -5%</p>
+                <button class="btn sm">Apply</button>
+              </div>
+              <div class="card suggest" data-delta="-8">
+                <h3>Extend term to 25y</h3>
+                <p>Monthly -$8 • ROI +0.5y</p>
+                <button class="btn sm">Apply</button>
+              </div>
+              <div class="card suggest" data-delta="-12">
+                <h3>Swap to Tier‑B panels</h3>
+                <p>Monthly -$12 • Warranty -2y</p>
+                <button class="btn sm">Apply</button>
+              </div>
+            </div>
+            <div class="summary">
+              <div>Payment: <strong id="sum-payment">$130</strong></div>
+              <div>Savings vs Utility: <strong id="sum-savings">28%</strong></div>
+              <div>Coverage: <strong id="sum-coverage">105%</strong></div>
+              <div class="row gap">
+                <button class="btn">Revert</button>
+                <button class="btn primary">Save as Option B</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Contractor Handoff -->
+        <section id="handoff" class="route" hidden>
+          <div class="layout onecol">
+            <h2>Contractor Handoff</h2>
+            <ol class="stepper" id="handoff-stepper">
+              <li class="step current" data-step="confirm">Confirm Proposal</li>
+              <li class="step" data-step="docs">Docs Checklist</li>
+              <li class="step" data-step="assign">Assign Contractor</li>
+              <li class="step" data-step="schedule">Schedule</li>
+              <li class="step" data-step="send">Review & Send</li>
+            </ol>
+            <div class="wizard card" id="handoff-wizard">
+              <div class="pane" data-pane="confirm">
+                <h3>Proposal Summary</h3>
+                <p>Comfort package • 7.5 kW • $132/mo</p>
+                <button class="btn primary next">Next</button>
+              </div>
+              <div class="pane" data-pane="docs" hidden>
+                <h3>Documents</h3>
+                <ul class="checklist">
+                  <li>Customer ID ✓</li>
+                  <li>Utility bills ✓</li>
+                  <li>Signed proposal ✓</li>
+                </ul>
+                <button class="btn next">Next</button>
+              </div>
+              <div class="pane" data-pane="assign" hidden>
+                <h3>Assign Contractor</h3>
+                <div class="cards list">
+                  <div class="card">SunWorks • SLA 98% • <button class="btn sm select-ctr">Select</button></div>
+                  <div class="card">BrightInstall • SLA 95% • <button class="btn sm select-ctr">Select</button></div>
+                </div>
+                <button class="btn next">Next</button>
+              </div>
+              <div class="pane" data-pane="schedule" hidden>
+                <h3>Schedule</h3>
+                <p>Preferred: Next 2 weeks</p>
+                <button class="btn next">Next</button>
+              </div>
+              <div class="pane" data-pane="send" hidden>
+                <h3>Review & Send</h3>
+                <p>Package ready to send to contractor and customer.</p>
+                <button class="btn primary">Send Package</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
+
+    <script src="assets/app.js"></script>
+  </body>
+  </html>

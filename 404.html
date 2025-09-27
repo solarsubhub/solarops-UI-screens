@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Redirecting…</title>
+    <meta http-equiv="refresh" content="1; url=./" />
+    <script>
+      (function(){
+        var parts = window.location.pathname.split('/').filter(Boolean);
+        var base = '/';
+        if(parts.length>0) base = '/' + parts[0] + '/';
+        window.location.replace(base);
+      })();
+    </script>
+  </head>
+  <body>
+    <p>Page not found. Redirecting to home…</p>
+    <a href="./">Go to Home</a>
+  </body>
+  </html>
