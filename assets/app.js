@@ -20,6 +20,22 @@ showRoute((location.hash||'#proposal').replace('#',''));
 
 // Toast helper
 function toast(msg){
+// Sidebar collapse toggle
+document.getElementById('nav-toggle')?.addEventListener('click',()=>{
+  document.body.classList.toggle('nav-collapsed');
+});
+// Collapsible groups
+document.querySelectorAll('[data-collapsible]')?.forEach(el=>{
+  el.addEventListener('click',()=>{
+    const group = el.closest('.nav-group');
+    const list = group?.querySelector('.group-list');
+    if(!list) return;
+    const collapsed = list.hasAttribute('hidden');
+    if(collapsed) list.removeAttribute('hidden'); else list.setAttribute('hidden','');
+    const caret = el.querySelector('.caret'); if(caret) caret.style.transform = collapsed? 'rotate(0deg)':'rotate(-90deg)';
+  });
+});
+
   const t = document.getElementById('toast');
   t.textContent = msg; t.hidden = false;
   setTimeout(()=> t.hidden = true, 2200);
@@ -34,6 +50,15 @@ const kpiKw = document.getElementById('kpi-kw');
 const kpiKwh = document.getElementById('kpi-kwh');
 const kpiMonthly = document.getElementById('kpi-monthly');
 const kpiSavings = document.getElementById('kpi-savings');
+
+// Shared app state to pipe defaults into Financing/Calculator
+const appState = {
+  kw: 7.5,
+  kwh: 11300,
+  monthly: 132,
+  capex: 21500,
+  util: 180
+};
 
 markBtn?.addEventListener('click',()=>{
   document.querySelectorAll('#preflight-list li').forEach(li=>{
@@ -54,6 +79,9 @@ analysisBtn?.addEventListener('click',()=>{
     kpiMonthly.textContent = '$132';
     kpiSavings.textContent = '28%';
     packageCards.hidden = false;
+    // update defaults
+    appState.kw = 7.5; appState.kwh = 11300; appState.monthly = 132; appState.capex = 21500;
+    updateSummaryChips();
     toast('Site analysis complete');
   }, 1200);
 });
@@ -63,6 +91,12 @@ document.querySelectorAll('#package-cards .select-tier').forEach(btn=>{
     document.querySelectorAll('#package-cards .pkg').forEach(c=>c.classList.remove('selected'));
     const card = btn.closest('.pkg');
     card?.classList.add('selected');
+    // derive defaults from the chosen card
+    const kw = Number((card?.querySelector('[data-field="kw"]')?.textContent||'0').replace(/[^\d.]/g,''))||appState.kw;
+    const kwh = Number((card?.querySelector('[data-field="kwh"]')?.textContent||'0').replace(/[^\d.]/g,''))||appState.kwh;
+    const monthly = Number((card?.querySelector('[data-field="monthly"]')?.textContent||'0').replace(/[^\d.]/g,''))||appState.monthly;
+    appState.kw = kw; appState.kwh = kwh; appState.monthly = monthly;
+    updateSummaryChips();
     toast(`Selected ${card?.querySelector('h3')?.textContent} as baseline`);
   });
 });
@@ -95,6 +129,9 @@ function refreshMetrics(){
   document.getElementById('m-capex').textContent = `$${capex.toLocaleString()}`;
   document.getElementById('m-monthly').textContent = `$${monthly}`;
   document.getElementById('m-payback').textContent = `${payback}y`;
+  // sync shared state
+  appState.kw = Number(kw); appState.kwh = kwh; appState.capex = capex; appState.monthly = monthly;
+  updateSummaryChips();
 }
 document.querySelector('[data-tool="add"]')?.addEventListener('click',()=>{
   panels += 1; panelCount.textContent = panels; refreshMetrics();
@@ -139,6 +176,14 @@ document.getElementById('run-ai')?.addEventListener('click',()=>{
   });
 });
 
+function updateSummaryChips(){
+  const fin = document.getElementById('fin-summary');
+  const calc = document.getElementById('calc-summary');
+  const chips = [`From proposal: ${appState.kw} kW`,`Capex $${appState.capex.toLocaleString()}`,`Est. $${appState.monthly}/mo`];
+  if(fin) fin.innerHTML = chips.map(t=>`<span class="chip">${t}</span>`).join('');
+  if(calc) calc.innerHTML = chips.map(t=>`<span class="chip">${t}</span>`).join('');
+}
+
 // Calculator
 function amortizedPayment(P, annualRatePct, months){
   const r = (annualRatePct/100)/12;
@@ -160,12 +205,31 @@ function recalc(){
   document.getElementById('c-save').textContent = `${savePct}%`;
   const before = document.getElementById('bar-before');
   const after = document.getElementById('bar-after');
-  before.style.width = Math.min(100, util).toString()+"%";
-  after.style.width = Math.min(100, net).toString()+"%";
+  const maxVal = Math.max(util, net, 1);
+  const beforePct = Math.round((util / maxVal) * 100);
+  const afterPct = Math.round((net / maxVal) * 100);
+  before.style.width = beforePct + '%';
+  after.style.width = afterPct + '%';
+  before.querySelector('span').textContent = `Before: $${util}`;
   after.querySelector('span').textContent = `After: $${net}`;
 }
 document.getElementById('calc-run')?.addEventListener('click', recalc);
 recalc();
+
+function applyDefaultsToFinancing(){
+  updateSummaryChips();
+  // nothing to set except maybe encourage down payment based on capex
+  const down = document.getElementById('down'); if(down && !down._touched) down.value = Math.round(appState.capex*0.05);
+  // auto-run recommendations
+  document.getElementById('run-ai')?.click();
+}
+
+function applyDefaultsToCalculator(){
+  updateSummaryChips();
+  const loan = document.getElementById('loan-amount'); if(loan && !loan._touched) loan.value = appState.capex;
+  const util = document.getElementById('util'); if(util && !util._touched) util.value = appState.util;
+  recalc();
+}
 
 // Cost Adjustment
 const target = document.getElementById('target');
@@ -333,12 +397,16 @@ function renderAllKanbans(){
   renderKanbanAt('kanban','pipe-filter','pipe-contractor');
   renderKanbanAt('kanban-home','ch-filter','ch-contractor');
   renderContractorDashboard();
+  renderContractorList();
+  updateNavBadges();
 }
 
 document.getElementById('pipe-filter')?.addEventListener('input', ()=>renderKanbanAt('kanban','pipe-filter','pipe-contractor'));
 document.getElementById('pipe-contractor')?.addEventListener('change', ()=>renderKanbanAt('kanban','pipe-filter','pipe-contractor'));
 document.getElementById('ch-filter')?.addEventListener('input', ()=>renderKanbanAt('kanban-home','ch-filter','ch-contractor'));
 document.getElementById('ch-contractor')?.addEventListener('change', ()=>renderKanbanAt('kanban-home','ch-filter','ch-contractor'));
+document.getElementById('ch-filter')?.addEventListener('input', renderContractorList);
+document.getElementById('ch-contractor')?.addEventListener('change', renderContractorList);
 
 // Move-select handler
 document.body.addEventListener('change',(e)=>{
@@ -350,10 +418,14 @@ document.body.addEventListener('change',(e)=>{
 // Render when visiting route
 window.addEventListener('hashchange',()=>{
   if(location.hash==='#pipeline') renderKanbanAt('kanban','pipe-filter','pipe-contractor');
-  if(location.hash==='#contractor') { renderKanbanAt('kanban-home','ch-filter','ch-contractor'); renderContractorDashboard(); }
+  if(location.hash==='#contractor') { renderKanbanAt('kanban-home','ch-filter','ch-contractor'); renderContractorDashboard(); renderContractorList(); updateNavBadges(); }
+  if(location.hash==='#financing') applyDefaultsToFinancing();
+  if(location.hash==='#calculator') applyDefaultsToCalculator();
 });
 if(location.hash==='#pipeline') renderKanbanAt('kanban','pipe-filter','pipe-contractor');
-if(location.hash==='#contractor') { renderKanbanAt('kanban-home','ch-filter','ch-contractor'); renderContractorDashboard(); }
+if(location.hash==='#contractor') { renderKanbanAt('kanban-home','ch-filter','ch-contractor'); renderContractorDashboard(); renderContractorList(); updateNavBadges(); }
+if(location.hash==='#financing') applyDefaultsToFinancing();
+if(location.hash==='#calculator') applyDefaultsToCalculator();
 
 function renderContractorDashboard(){
   const counts = Object.fromEntries(PIPE_STAGES.map(s=>[s.id, jobs.filter(j=>j.stage===s.id).length]));
@@ -373,4 +445,23 @@ function renderContractorDashboard(){
       const li = document.createElement('li'); li.textContent = `${j.name} — ${PIPE_STAGES.find(s=>s.id===j.stage).title}`; upcoming.appendChild(li);
     });
   }
+}
+
+function renderContractorList(){
+  const tbody = document.getElementById('ctr-tbody'); if(!tbody) return;
+  const q = (document.getElementById('ch-filter')?.value||'').toLowerCase();
+  const ctr = document.getElementById('ch-contractor')?.value||'';
+  const filtered = jobs.filter(j=> (!ctr||j.contractor===ctr) && (!q || (j.name+' '+j.address).toLowerCase().includes(q)));
+  tbody.innerHTML = '';
+  filtered.forEach(j=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${j.id}</td><td>${j.name}</td><td>${j.address}</td><td>${PIPE_STAGES.find(s=>s.id===j.stage).title}</td><td>${j.contractor}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function updateNavBadges(){
+  const total = jobs.length;
+  const pipe = document.getElementById('badge-pipe'); if(pipe) pipe.textContent = String(total);
+  const ctr = document.getElementById('badge-ctr'); if(ctr) ctr.textContent = String(total);
 }

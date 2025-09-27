@@ -23,6 +23,10 @@
 
     <div class="app-shell">
       <nav class="sidebar">
+        <div class="row between" style="margin-bottom:8px">
+          <strong>Menu</strong>
+          <button class="btn sm" id="nav-toggle" title="Collapse/Expand sidebar">⟘</button>
+        </div>
         <ul>
           <li><a href="#proposal" class="nav-link">Proposal Creation</a></li>
           <li><a href="#editor" class="nav-link">Proposal Editor</a></li>
@@ -32,10 +36,10 @@
           <li><a href="#handoff" class="nav-link">Contractor Handoff</a></li>
           <li><hr/></li>
           <li class="nav-group">
-            <div class="group-title">Contractor</div>
+            <div class="group-title" id="group-contractor" data-collapsible><span class="caret">▾</span> Contractor</div>
             <ul class="group-list">
-              <li><a href="#contractor" class="nav-link indent">Home</a></li>
-              <li><a href="#pipeline" class="nav-link indent">Pipeline (Kanban)</a></li>
+              <li><a href="#contractor" id="nav-contractor" class="nav-link indent" title="Contractor Home"><span class="nav-ic">🏠</span><span class="nav-label">Home</span><span class="nav-badge" id="badge-ctr"></span></a></li>
+              <li><a href="#pipeline" id="nav-pipeline" class="nav-link indent" title="Pipeline"><span class="nav-ic">🗂️</span><span class="nav-label">Pipeline (Kanban)</span><span class="nav-badge" id="badge-pipe"></span></a></li>
               <li><a href="#survey" class="nav-link indent">Site Survey</a></li>
               <li><a href="#cad" class="nav-link indent">CAD / Engineering</a></li>
               <li><a href="#trueup" class="nav-link indent">True Up</a></li>
@@ -65,19 +69,46 @@
                 </select>
               </div>
             </div>
-            <div class="kpis">
-              <div class="kpi"><div class="label">Total Jobs</div><div class="value" id="ctr-total">—</div></div>
-              <div class="kpi"><div class="label">SLA at Risk</div><div class="value" id="ctr-sla">—</div></div>
-              <div class="kpi"><div class="label">Permitting</div><div class="value" id="ctr-permit">—</div></div>
-              <div class="kpi"><div class="label">Installation</div><div class="value" id="ctr-install">—</div></div>
-              <div class="kpi"><div class="label">Inspection</div><div class="value" id="ctr-inspect">—</div></div>
-              <div class="kpi"><div class="label">PTO</div><div class="value" id="ctr-pto">—</div></div>
+            <div class="tabs" data-tabs id="contractor-tabs">
+              <button class="tab active" data-tab="c-overview">Overview</button>
+              <button class="tab" data-tab="c-board">Board</button>
+              <button class="tab" data-tab="c-list">List</button>
+              <button class="tab" data-tab="c-calendar">Calendar</button>
+              <button class="tab" data-tab="c-reports">Reports</button>
             </div>
-            <div class="card">
-              <h3>Upcoming 7 days</h3>
-              <ul id="ctr-upcoming" class="list"><li>—</li></ul>
+            <div class="tabpanes">
+              <div class="tabpane active" id="tab-c-overview">
+                <div class="kpis">
+                  <div class="kpi"><div class="label">Total Jobs</div><div class="value" id="ctr-total">—</div></div>
+                  <div class="kpi"><div class="label">SLA at Risk</div><div class="value" id="ctr-sla">—</div></div>
+                  <div class="kpi"><div class="label">Permitting</div><div class="value" id="ctr-permit">—</div></div>
+                  <div class="kpi"><div class="label">Installation</div><div class="value" id="ctr-install">—</div></div>
+                  <div class="kpi"><div class="label">Inspection</div><div class="value" id="ctr-inspect">—</div></div>
+                  <div class="kpi"><div class="label">PTO</div><div class="value" id="ctr-pto">—</div></div>
+                </div>
+                <div class="card">
+                  <h3>Upcoming 7 days</h3>
+                  <ul id="ctr-upcoming" class="list"><li>—</li></ul>
+                </div>
+              </div>
+              <div class="tabpane" id="tab-c-board">
+                <div class="kanban" id="kanban-home"></div>
+              </div>
+              <div class="tabpane" id="tab-c-list">
+                <div class="card">
+                  <table class="table">
+                    <thead><tr><th>ID</th><th>Customer</th><th>Address</th><th>Stage</th><th>Contractor</th></tr></thead>
+                    <tbody id="ctr-tbody"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="tabpane" id="tab-c-calendar">
+                <div class="card"><p>Calendar (placeholder)</p></div>
+              </div>
+              <div class="tabpane" id="tab-c-reports">
+                <div class="card"><p>Reports (placeholder)</p></div>
+              </div>
             </div>
-            <div class="kanban" id="kanban-home"></div>
           </div>
         </section>
 
@@ -501,24 +532,27 @@
         <section id="financing" class="route" hidden>
           <div class="layout twocol">
             <aside class="panel">
-              <h2>AI Financing</h2>
+              <div class="card sun" id="fin-hero">
+                <h2 style="margin:0 0 6px 0">Financing</h2>
+                <div class="row gap" id="fin-summary"><span class="chip">From proposal: 7.5 kW</span><span class="chip">Capex $21,500</span><span class="chip">Est. $132/mo</span></div>
+              </div>
               <div class="card">
                 <label>Credit Range</label>
-                <input type="range" id="credit" min="550" max="800" step="10" value="700" />
+                <input class="input" type="range" id="credit" min="550" max="800" step="10" value="700" />
                 <div class="row between"><small>550</small><small id="credit-val">700</small><small>800</small></div>
               </div>
-              <div class="card grid-2">
+              <div class="card grid-2 form-grid">
                 <label>Income
-                  <input type="number" id="income" value="95000" />
+                  <input class="input" type="number" id="income" value="95000" />
                 </label>
                 <label>DTI %
-                  <input type="number" id="dti" value="28" />
+                  <input class="input" type="number" id="dti" value="28" />
                 </label>
                 <label>Down Payment
-                  <input type="number" id="down" value="2000" />
+                  <input class="input" type="number" id="down" value="2000" />
                 </label>
                 <label>Goal
-                  <select id="goal">
+                  <select class="input" id="goal">
                     <option value="lowest">Lowest Monthly</option>
                     <option value="fast">Fastest Payoff</option>
                   </select>
@@ -538,22 +572,25 @@
         <section id="calculator" class="route" hidden>
           <div class="layout twocol">
             <aside class="panel">
-              <h2>Monthly Cost</h2>
-              <div class="card">
+              <div class="card sky" id="calc-hero">
+                <h2 style="margin:0 0 6px 0">Monthly Cost</h2>
+                <div class="row gap" id="calc-summary"><span class="chip">From proposal: 7.5 kW</span><span class="chip">Capex $21,500</span><span class="chip">Est. $132/mo</span></div>
+              </div>
+              <div class="card form-grid">
                 <label>Loan Amount
-                  <input type="number" id="loan-amount" value="21500" />
+                  <input class="input" type="number" id="loan-amount" value="21500" />
                 </label>
                 <label>APR %
-                  <input type="number" id="apr" step="0.1" value="5.0" />
+                  <input class="input" type="number" id="apr" step="0.1" value="5.0" />
                 </label>
                 <label>Term (months)
-                  <input type="number" id="term" value="300" />
+                  <input class="input" type="number" id="term" value="300" />
                 </label>
                 <label>Avg Utility Bill
-                  <input type="number" id="util" value="180" />
+                  <input class="input" type="number" id="util" value="180" />
                 </label>
                 <label>Utility Escalation %/yr
-                  <input type="number" id="escalation" step="0.5" value="3.0" />
+                  <input class="input" type="number" id="escalation" step="0.5" value="3.0" />
                 </label>
               </div>
               <button class="btn" id="calc-run">Recalculate</button>
