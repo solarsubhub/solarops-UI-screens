@@ -1,7 +1,7 @@
 // Simple hash router
 const routes = [
-  "proposal","editor","financing","calculator","adjust","handoff",
-  "survey","cad","trueup","permitting","install","inspection","pto","turnon","commissioning","pipeline","contractor"
+  "login","proposal","editor","financing","calculator","adjust","handoff",
+  "survey","cad","trueup","permitting","install","inspection","pto","turnon","commissioning","pipeline","contractor","sales","finance","sales-projects"
 ];
 const stageRoutes = ["survey","cad","trueup","permitting","install","inspection","pto","turnon","commissioning"]; 
 let lastContractorTab = 'c-overview';
@@ -25,12 +25,17 @@ function updateBackbar(){
 }
 
 window.addEventListener('hashchange',()=>{
-  const id = location.hash.replace('#','') || 'proposal';
+  const id = location.hash.replace('#','') || 'login';
+  // Auth guard: force login if not authenticated
+  if(!appState.user?.role && id !== 'login'){
+    location.hash = '#login';
+    showRoute('login');
+    updateBackbar();
+    return;
+  }
   if(routes.includes(id)) showRoute(id);
   updateBackbar();
 });
-showRoute((location.hash||'#proposal').replace('#',''));
-updateBackbar();
 
 // Toast helper
 function toast(msg){
@@ -110,14 +115,107 @@ document.querySelector('[data-action="export-pdf"]')?.addEventListener('click',(
   window.print();
 });
 
-// Shared app state to pipe defaults into Financing/Calculator
+// Shared app state to pipe defaults into Financing/Calculator and user context
 const appState = {
   kw: 7.5,
   kwh: 11300,
   monthly: 132,
   capex: 21500,
-  util: 180
+  util: 180,
+  user: (()=>{ try{return JSON.parse(localStorage.getItem('ssh_user')||'null');}catch{return null;} })()
 };
+
+function updateUserContext(){
+  const role = appState.user?.role || null;
+  const show = (href, ok)=>{
+    document.querySelectorAll(`a[href="${href}"]`).forEach(a=>{ 
+      a.style.display = ok ? '' : 'none';
+      const li=a.closest('li'); if(li) li.style.display = ok? '':'none'; 
+    });
+  };
+  // Show only Login when not authenticated
+  show('#login', !role);
+  show('#sales', !!role && (role==='Sales' || role==='Admin'));
+  show('#sales-projects', !!role && (role==='Sales' || role==='Admin'));
+  show('#proposal', !!role && (role==='Sales' || role==='Admin'));
+  show('#editor', !!role && (role==='Sales' || role==='Admin'));
+  show('#financing', !!role && (role==='Sales' || role==='Admin'));
+  show('#calculator', !!role && (role==='Sales' || role==='Admin'));
+  show('#handoff', !!role && (role==='Sales' || role==='Admin'));
+  show('#contractor', !!role && (role==='Contractor' || role==='Admin'));
+  show('#pipeline', !!role && (role==='Contractor' || role==='Admin'));
+  show('#finance', !!role && (role==='Finance' || role==='Admin'));
+
+  // Header controls visibility
+  const saveBtn = document.querySelector('[data-action="save-version"]');
+  const pdfBtn = document.querySelector('[data-action="export-pdf"]');
+  const logoutBtn = document.getElementById('logout-btn');
+  if(saveBtn) saveBtn.style.display = role ? '' : 'none';
+  if(pdfBtn) pdfBtn.style.display = role ? '' : 'none';
+  if(logoutBtn) logoutBtn.hidden = !role;
+
+  // Hide entire Contractor group unless Contractor/Admin
+  const contractorGroup = document.getElementById('group-contractor')?.closest('.nav-group');
+  if(contractorGroup){ contractorGroup.style.display = (!!role && (role==='Contractor' || role==='Admin')) ? '' : 'none'; }
+
+  // If not logged in, force login route
+  if(!role && location.hash !== '#login'){
+    location.hash = '#login';
+  }
+}
+updateUserContext();
+
+// Initial landing route per role
+function getLandingForRole(role){
+  if(role==='Sales') return '#sales';
+  if(role==='Contractor') return '#contractor';
+  if(role==='Finance') return '#finance';
+  if(role==='Admin') return '#proposal'; // Admin sees all; land on Proposal by default
+  return '#login';
+}
+
+(function initRoute(){
+  const role = appState.user?.role || null;
+  if(!role){
+    location.hash = '#login';
+    showRoute('login');
+  } else {
+    const current = location.hash || '';
+    if(!current || current==='#login'){
+      const dest = getLandingForRole(role);
+      location.hash = dest;
+      showRoute(dest.replace('#',''));
+    } else {
+      showRoute(current.replace('#',''));
+    }
+  }
+  updateBackbar();
+})();
+
+// Login handling and role landing
+document.getElementById('login-form')?.addEventListener('submit',(e)=>{
+  e.preventDefault();
+  const name = document.getElementById('login-name').value || 'User';
+  const role = document.getElementById('login-role').value || 'Sales';
+  appState.user = {name, role};
+  localStorage.setItem('ssh_user', JSON.stringify(appState.user));
+  updateUserContext();
+  if(role==='Sales') location.hash = '#sales';
+  else if(role==='Contractor') location.hash = '#contractor';
+  else if(role==='Finance') location.hash = '#finance';
+  else location.hash = '#proposal';
+  toast(`Logged in as ${name} (${role})`);
+});
+
+// Logout handling
+document.getElementById('logout-btn')?.addEventListener('click',()=>{
+  localStorage.removeItem('ssh_user');
+  appState.user = null;
+  updateUserContext();
+  showRoute('login');
+  location.hash = '#login';
+  toast('Logged out');
+});
 
 // Proposal step state machine
 const proposalSteps = ['preflight','analysis','packages','review'];
@@ -149,7 +247,7 @@ function setProposalStep(step){
   // nav buttons
   if(propPrev) propPrev.disabled = (proposalStep==='preflight');
   let canNext = true;
-  if(step==='preflight') canNext = preflightDone; // require checklist before moving on
+  // Allow Next without requiring preflight complete
   if(step==='packages') canNext = packageChosen;
   if(propNext) propNext.disabled = !canNext;
   if(propNext) propNext.textContent = (step==='review') ? 'Finish' : 'Next';
@@ -206,7 +304,7 @@ propPrev?.addEventListener('click',()=>{
   if(idx>0){ setProposalStep(proposalSteps[idx-1]); }
 });
 propNext?.addEventListener('click',()=>{
-  if(proposalStep==='preflight'){ if(!preflightDone) return; runAnalysis(); return; }
+  if(proposalStep==='preflight'){ runAnalysis(); return; }
   if(proposalStep==='analysis'){ setProposalStep('packages'); return; }
   if(proposalStep==='packages'){
     if(!packageChosen) return;
@@ -235,6 +333,15 @@ function initProposal(){
   preflightDone = false; packageChosen = false; chosenTier = null;
   setProposalStep('preflight');
   const backbar = document.getElementById('backbar'); if(backbar) backbar.hidden = true;
+  // Pre-fill from selected lead context
+  const info = document.getElementById('lead-info'); const body = document.getElementById('lead-info-body');
+  if(appState.currentLead){
+    info.hidden = false;
+    body.innerHTML = `<div class="row gap"><strong>${appState.currentLead.name||appState.currentLead.id}</strong><span class="chip">${appState.currentLead.id}</span></div>`;
+  }else{
+    info.hidden = true;
+    body.textContent = '—';
+  }
 }
 
 // Tabs in editor
@@ -376,6 +483,18 @@ function applyDefaultsToCalculator(){
   recalc();
 }
 
+// Handoff defaults: pre-fill proposal summary with customer details
+function applyHandoffDefaults(){
+  const pane = document.querySelector('#handoff-wizard [data-pane="confirm"]');
+  if(!pane) return;
+  const p = pane.querySelector('p');
+  const lead = appState.currentLead||{};
+  const name = lead.name||lead.id||'—';
+  const addr = lead.address||'—';
+  const email = lead.email||'—';
+  if(p){ p.innerHTML = `Comfort package • ${appState.kw} kW • ~$${appState.monthly}/mo<br/><small>Customer: <strong>${name}</strong> • ${addr} • ${email}</small>`; }
+}
+
 // Cost Adjustment
 const target = document.getElementById('target');
 const targetVal = document.getElementById('target-val');
@@ -499,11 +618,11 @@ const PIPE_STAGES = [
   {id:'commissioning', title:'Commissioning', wip:10}
 ];
 let jobs = [
-  {id:'J-1001', name:'Lopez', address:'123 Palm St', contractor:'SunWorks', stage:'survey'},
-  {id:'J-1002', name:'Singh', address:'44 Juniper Ave', contractor:'BrightInstall', stage:'cad'},
-  {id:'J-1003', name:'Chen', address:'9 Acacia Ct', contractor:'SunWorks', stage:'permitting'},
-  {id:'J-1004', name:'Miller', address:'77 Lake View', contractor:'SunWorks', stage:'install'},
-  {id:'J-1005', name:'Khan', address:'15 Oak Blvd', contractor:'BrightInstall', stage:'inspection'}
+  {id:'J-1001', name:'Lopez', address:'123 Palm St', contractor:'SunWorks', stage:'survey', sales:'Alex'},
+  {id:'J-1002', name:'Singh', address:'44 Juniper Ave', contractor:'BrightInstall', stage:'cad', sales:'Alex'},
+  {id:'J-1003', name:'Chen', address:'9 Acacia Ct', contractor:'SunWorks', stage:'permitting', sales:'Sam'},
+  {id:'J-1004', name:'Miller', address:'77 Lake View', contractor:'SunWorks', stage:'install', sales:'Sam'},
+  {id:'J-1005', name:'Khan', address:'15 Oak Blvd', contractor:'BrightInstall', stage:'inspection', sales:'Riley'}
 ];
 
 function renderKanbanAt(rootId, filterId, contractorId){
@@ -597,6 +716,8 @@ window.addEventListener('hashchange',()=>{
   if(location.hash==='#financing') applyDefaultsToFinancing();
   if(location.hash==='#calculator') applyDefaultsToCalculator();
   if(location.hash==='#proposal') initProposal();
+  if(location.hash==='#handoff') applyHandoffDefaults();
+  if(location.hash==='#sales-projects') renderSalesProjects();
   if(location.hash==='#editor') renderVersionList();
 });
 if(location.hash==='#pipeline') renderKanbanAt('kanban','pipe-filter','pipe-contractor');
@@ -604,6 +725,8 @@ if(location.hash==='#contractor') { renderKanbanAt('kanban-home','ch-filter','ch
 if(location.hash==='#financing') applyDefaultsToFinancing();
 if(location.hash==='#calculator') applyDefaultsToCalculator();
 if(location.hash==='#proposal' || location.hash==='') initProposal();
+if(location.hash==='#handoff') applyHandoffDefaults();
+if(location.hash==='#sales-projects') renderSalesProjects();
 if(location.hash==='#editor') renderVersionList();
 
 function renderContractorDashboard(){
@@ -639,11 +762,236 @@ function renderContractorList(){
   });
 }
 
+// --------- Sales: My Projects (read-only) ----------
+function renderSalesProjects(){
+  const root = document.getElementById('sales-projects-root'); if(!root) return;
+  const user = appState.user?.name || '';
+  const mine = jobs.filter(j=> j.sales === user);
+  const byStage = PIPE_STAGES.map(s=>({
+    id: s.id,
+    title: s.title,
+    items: mine.filter(j=> j.stage === s.id)
+  }));
+  root.innerHTML = '';
+  const wrap = document.createElement('div'); wrap.className = 'kanban';
+  byStage.forEach(col=>{
+    const el = document.createElement('div'); el.className = 'kan-col';
+    el.innerHTML = `<div class="kan-header"><span class="kan-title">${col.title}</span><span class="kan-count badge">${col.items.length}</span></div><div class="kan-cards"></div>`;
+    const cards = el.querySelector('.kan-cards');
+    col.items.forEach(j=>{
+      const c = document.createElement('div'); c.className='kan-card';
+      c.innerHTML = `<strong>${j.name}</strong> • ${j.address}<br/><small>${j.contractor} • ${j.id}</small>`;
+      cards.appendChild(c);
+    });
+    wrap.appendChild(el);
+  });
+  root.appendChild(wrap);
+}
+
 function updateNavBadges(){
   const total = jobs.length;
   const pipe = document.getElementById('badge-pipe'); if(pipe) pipe.textContent = String(total);
   const ctr = document.getElementById('badge-ctr'); if(ctr) ctr.textContent = String(total);
 }
+
+// --------- Sales Dashboard ----------
+const SD_STATUSES = [
+  {id:'new', label:'New', color:'#8B5CF6'},
+  {id:'qualified', label:'Qualified', color:'#10B981'},
+  {id:'appointment', label:'Appointment Set', color:'#F59E0B'},
+  {id:'converted', label:'Converted', color:'#22C55E'},
+  {id:'disqualified', label:'Disqualified', color:'#EF4444'}
+];
+// Persistence helpers
+function loadJSON(key, fallback){
+  try{ const v = JSON.parse(localStorage.getItem(key)); return v??fallback; }catch{ return fallback; }
+}
+function saveJSON(key, value){ localStorage.setItem(key, JSON.stringify(value)); }
+
+function seedLeads(){
+  return [
+    {id:'L-1001', user:'Alex', created:daysAgo(9), status:'appointment', name:'Lopez', email:'lopez@example.com', address:'123 Palm St'},
+    {id:'L-1002', user:'Alex', created:daysAgo(2), status:'qualified', name:'Singh', email:'singh@example.com', address:'44 Juniper Ave'},
+    {id:'L-1003', user:'Sam', created:daysAgo(12), status:'converted', name:'Chen', email:'chen@example.com', address:'9 Acacia Ct'},
+    {id:'L-1004', user:'Sam', created:daysAgo(1), status:'new', name:'Miller', email:'miller@example.com', address:'77 Lake View'},
+    {id:'L-1005', user:'Riley', created:daysAgo(20), status:'disqualified', name:'Khan', email:'khan@example.com', address:'15 Oak Blvd'}
+  ];
+}
+let leads = loadJSON('ssh_leads', seedLeads()).map(l=>({...l, created:new Date(l.created)}));
+let finPending = loadJSON('ssh_fin_pending', []);
+let finRecent = loadJSON('ssh_fin_recent', []);
+function daysAgo(n){ const d = new Date(); d.setDate(d.getDate()-n); return d; }
+
+function renderSales(){
+  // populate user filter
+  const userSel = document.getElementById('sd-user'); if(userSel && userSel.options.length<=1){
+    const users = Array.from(new Set(leads.map(l=>l.user)));
+    users.forEach(u=>{ const o=document.createElement('option'); o.value=u; o.textContent=u; userSel.appendChild(o); });
+  }
+  const wnd = Number(document.getElementById('sd-window')?.value||90);
+  const user = document.getElementById('sd-user')?.value||'all';
+  const since = new Date(); since.setDate(since.getDate()-wnd);
+  const view = leads.filter(l=> l.created>=since && (user==='all'||l.user===user));
+  const count = view.length;
+  const today = view.filter(l=> sameDay(l.created, new Date())).length;
+  const byStatus = Object.fromEntries(SD_STATUSES.map(s=>[s.id, view.filter(l=>l.status===s.id).length]));
+  // tiles
+  setText('sd-total', count);
+  setText('sd-total-sub', `${today} today`);
+  setText('sd-qualified', byStatus.qualified||0);
+  const qRate = pct(byStatus.qualified, count); setText('sd-qualified-sub', `${qRate}% rate`);
+  setText('sd-appt', byStatus.appointment||0);
+  const aRate = pct(byStatus.appointment, byStatus.qualified||1); setText('sd-appt-sub', `${aRate}% from qualified`);
+  setText('sd-new-count', byStatus.new||0);
+  setText('sd-conv', byStatus.converted||0);
+  const cRate = pct(byStatus.converted, count); setText('sd-conv-sub', `${cRate}% of ${count}`);
+  // breakdown
+  const ul = document.getElementById('sd-breakdown'); if(ul){ ul.innerHTML=''; SD_STATUSES.forEach(s=>{
+    const li = document.createElement('li'); li.innerHTML = `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${s.color};margin-right:8px"></span>${s.label}<span style="float:right">${byStatus[s.id]||0}</span>`; ul.appendChild(li);
+  }); }
+  // table
+  const tbody = document.querySelector('#sd-table tbody');
+  if(tbody){
+    tbody.innerHTML = '';
+    view.forEach(l=>{
+      const tr = document.createElement('tr');
+      const actions = [
+        l.status!=='qualified'?`<button class="btn sm" data-action="lead-qual" data-id="${l.id}">Qualify</button>`:'',
+        `<button class="btn sm" data-action="lead-prop" data-id="${l.id}">Start Proposal</button>`,
+        (l.status==='qualified'?`<button class="btn sm" data-action="lead-submit" data-id="${l.id}">Submit Finance</button>`:''),
+        `<button class="btn sm" data-action="lead-follow" data-id="${l.id}">Follow-up</button>`
+      ].filter(Boolean).join(' ');
+      tr.innerHTML = `<td>${l.id}</td><td>${l.name||'-'}</td><td>${l.user}</td><td>${l.status}</td><td>${new Date(l.created).toLocaleDateString()}</td><td>${actions}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+  // KPI bars
+  setBar('sd-qual-rate','sd-qual-rate-val', qRate);
+  setBar('sd-appt-rate','sd-appt-rate-val', aRate);
+  const dRate = pct(byStatus.disqualified, count); setBar('sd-disq-rate','sd-disq-rate-val', dRate);
+}
+function setText(id, txt){ const el=document.getElementById(id); if(el) el.textContent = String(txt); }
+function setBar(barId, valId, pctVal){ const bar=document.getElementById(barId); const val=document.getElementById(valId); if(bar) bar.style.width = `${pctVal}%`; if(val) val.textContent = `${pctVal}%`; }
+function pct(n,d){ if(!d) return 0; return Math.round((n/d)*1000)/10; }
+function sameDay(a,b){ return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
+
+document.getElementById('sd-window')?.addEventListener('change', renderSales);
+document.getElementById('sd-user')?.addEventListener('change', renderSales);
+document.getElementById('sd-refresh')?.addEventListener('click', renderSales);
+// New Lead modal helpers
+function hideNewLeadModal(){ const m=document.getElementById('modal-new-lead'); if(m) m.hidden = true; }
+function showNewLeadModal(){ const m=document.getElementById('modal-new-lead'); if(m) m.hidden = false; }
+document.getElementById('modal-new-lead')?.setAttribute('hidden','');
+// Open
+document.getElementById('sd-new')?.addEventListener('click', showNewLeadModal);
+// Close buttons
+document.getElementById('ml-close')?.addEventListener('click', hideNewLeadModal);
+document.getElementById('ml-cancel')?.addEventListener('click', hideNewLeadModal);
+// Click outside card closes
+document.getElementById('modal-new-lead')?.addEventListener('click', (e)=>{ if(e.target.id==='modal-new-lead') hideNewLeadModal(); });
+// Escape closes
+window.addEventListener('keydown', (e)=>{ if(e.key==='Escape') hideNewLeadModal(); });
+// Modal submit
+document.getElementById('new-lead-form')?.addEventListener('submit',(e)=>{
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const id = 'L-'+Math.floor(1000+Math.random()*9000);
+  leads.push({
+    id,
+    user: fd.get('user')||'Alex',
+    created: new Date(),
+    status:'new',
+    name: fd.get('name')||'',
+    phone: fd.get('phone')||'',
+    email: fd.get('email')||'',
+    address: fd.get('address')||'',
+    source: fd.get('source')||'Web',
+    notes: fd.get('notes')||''
+  });
+  saveJSON('ssh_leads', leads);
+  renderSales();
+  hideNewLeadModal();
+  (e.target).reset();
+  toast(`Lead ${id} created`);
+});
+// Follow-ups modal (stale > 7 days; supports snooze and done)
+function showFollowups(){
+  const list = document.getElementById('fu-list'); if(!list) return;
+  const now = new Date();
+  const stale = leads.filter(l=>{
+    const age = (now - new Date(l.created))/(1000*60*60*24);
+    const next = l.nextContact ? new Date(l.nextContact) : null;
+    const due = !next || next <= now;
+    return !l.followupDone && age>7 && due && !['new','qualified'].includes(l.status);
+  });
+  list.innerHTML = '';
+  if(stale.length===0){ list.innerHTML = '<li>No follow-ups found</li>'; }
+  stale.forEach(l=>{
+    const li = document.createElement('li');
+    const nextTxt = l.nextContact ? ` • Next: ${new Date(l.nextContact).toLocaleDateString()}` : '';
+    li.innerHTML = `<strong>${l.name||l.id}</strong> • ${l.status} • ${new Date(l.created).toLocaleDateString()}${nextTxt}
+      <div class="row gap" style="margin-top:6px">
+        <button class="btn sm" data-action="lead-prop" data-id="${l.id}">Start Proposal</button>
+        <button class="btn sm" data-fu-snooze="3" data-id="${l.id}">Snooze 3d</button>
+        <button class="btn sm" data-fu-snooze="7" data-id="${l.id}">Snooze 7d</button>
+        <button class="btn sm" data-fu-snooze="14" data-id="${l.id}">Snooze 14d</button>
+        <button class="btn sm" data-fu-done="${l.id}">Mark Done</button>
+      </div>`;
+    list.appendChild(li);
+  });
+  document.getElementById('modal-followups').hidden = false;
+}
+document.getElementById('fu-close')?.addEventListener('click', ()=> document.getElementById('modal-followups').hidden = true);
+document.getElementById('sd-followups')?.addEventListener('click', showFollowups);
+document.body.addEventListener('click',(e)=>{
+  const done = e.target.closest('[data-fu-done]');
+  if(done){
+    const id = done.getAttribute('data-fu-done'); const l = leads.find(x=>x.id===id);
+    if(l){ l.followupDone = true; saveJSON('ssh_leads', leads); }
+    document.getElementById('modal-followups').hidden = true; renderSales(); toast('Follow-up marked done');
+  }
+  const snz = e.target.closest('[data-fu-snooze]');
+  if(snz){
+    const d = Number(snz.getAttribute('data-fu-snooze')||'7');
+    const id = snz.getAttribute('data-id');
+    const l = leads.find(x=>x.id===id);
+    if(l){ l.nextContact = new Date(Date.now()+d*24*60*60*1000).toISOString(); saveJSON('ssh_leads', leads); }
+    document.getElementById('modal-followups').hidden = true; renderSales(); toast(`Snoozed ${d} days`);
+  }
+});
+
+// Sales actions routing
+document.body.addEventListener('click',(e)=>{
+  const qa = e.target.closest('[data-action="lead-qual"]');
+  const sp = e.target.closest('[data-action="lead-prop"]');
+  const fu = e.target.closest('[data-action="lead-follow"]');
+  const sf = e.target.closest('[data-action="lead-submit"]');
+  if(qa){
+    const id = qa.dataset.id; const l = leads.find(x=>x.id===id); if(l){ l.status='qualified'; saveJSON('ssh_leads', leads); toast(`${id} qualified`); renderSales(); }
+    return;
+  }
+  if(sp){
+    const id = sp.dataset.id; const l = leads.find(x=>x.id===id);
+    if(l){ appState.currentLead = {id:l.id, name:l.name, email:l.email||'', address:l.address||'', user:l.user||''}; document.querySelector('.crumbs').textContent = `Customer • ${l.name||l.id}`; }
+    location.hash = '#proposal';
+    return;
+  }
+  if(sf){
+    const id = sf.dataset.id; const l = leads.find(x=>x.id===id);
+    if(l){
+      finPending.unshift({id:`F-${id}`, lead:l.name||id, user:l.user, submitted:new Date().toISOString(), leadId:l.id, address:l.address||'', email:l.email||''});
+      saveJSON('ssh_fin_pending', finPending);
+      toast(`${id} submitted to Finance`);
+      location.hash = '#finance';
+    }
+    return;
+  }
+  if(fu){
+    const id = fu.dataset.id; const l = leads.find(x=>x.id===id);
+    if(l){ l.nextContact = new Date(Date.now()+7*24*60*60*1000).toISOString(); saveJSON('ssh_leads', leads); toast('Follow-up in 7 days'); renderSales(); }
+    return;
+  }
+});
 
 // Phase list in right pane
 function renderPhaseList(){
@@ -673,6 +1021,50 @@ document.body.addEventListener('click',(e)=>{
     document.querySelector('#contractor-tabs .tab[data-tab="c-board"]').click();
     // no direct filter per lane; guide user visually
     document.getElementById('kanban-home')?.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+});
+
+// Finance dashboard (render + actions)
+function renderFinance(){
+  const tbody = document.querySelector('#fin-pending tbody');
+  if(tbody){ tbody.innerHTML=''; finPending.forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${r.id}</td><td>${r.lead}</td><td>${r.user}</td><td>${new Date(r.submitted).toLocaleDateString()}</td>
+      <td class="row gap"><button class="btn sm" data-fin-approve="${r.id}">Approve</button><button class="btn sm" data-fin-reject="${r.id}">Reject</button></td>`;
+    tbody.appendChild(tr);
+  }); }
+  const ul = document.getElementById('fin-recent'); if(ul){ ul.innerHTML=''; finRecent.slice(0,8).forEach(x=>{
+    const li = document.createElement('li'); li.textContent = `${x.id} • ${x.action} by ${x.user} (${new Date(x.when).toLocaleDateString()})`; ul.appendChild(li);
+  }); }
+}
+document.getElementById('fin-refresh')?.addEventListener('click', ()=> renderFinance());
+document.body.addEventListener('click',(e)=>{
+  const ap = e.target.closest('[data-fin-approve]');
+  const rj = e.target.closest('[data-fin-reject]');
+  if(ap){
+    const id = ap.dataset.finApprove; const idx = finPending.findIndex(x=>x.id===id);
+    if(idx>=0){
+      const row = finPending.splice(idx,1)[0];
+      finRecent.unshift({id:row.id, action:'Approved', user:appState.user?.name||'Finance', when:new Date().toISOString()});
+      saveJSON('ssh_fin_pending', finPending); saveJSON('ssh_fin_recent', finRecent);
+      const jid = 'J-'+Math.floor(1000+Math.random()*9000);
+      jobs.unshift({id:jid, name:row.lead, address:row.address||'TBD', contractor:'SunWorks', stage:'survey', sales: row.user});
+      renderAllKanbans();
+      renderFinance();
+      toast(`${id} approved → Job ${jid} created`);
+    }
+    return;
+  }
+  if(rj){
+    const id = rj.dataset.finReject; const idx = finPending.findIndex(x=>x.id===id);
+    if(idx>=0){
+      const row = finPending.splice(idx,1)[0];
+      finRecent.unshift({id:row.id, action:'Rejected', user:appState.user?.name||'Finance', when:new Date().toISOString()});
+      saveJSON('ssh_fin_pending', finPending); saveJSON('ssh_fin_recent', finRecent);
+      renderFinance();
+      toast(`${id} rejected`);
+    }
+    return;
   }
 });
 
