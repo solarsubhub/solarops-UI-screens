@@ -15,8 +15,9 @@
       <div class="context">
         <div class="crumbs">Customer • Proposal ID: P-000123</div>
         <div class="actions">
-          <button class="btn ghost" data-action="save-version">Save Version</button>
-          <button class="btn primary" data-action="export-pdf">Export PDF</button>
+          <button class="btn ghost" data-action="save-version" style="display:none">Save Version</button>
+          <button class="btn primary" data-action="export-pdf" style="display:none">Export PDF</button>
+          <button class="btn" id="logout-btn" hidden>Logout</button>
         </div>
       </div>
     </header>
@@ -28,17 +29,21 @@
           <button class="btn sm" id="nav-toggle" title="Collapse/Expand sidebar">⟘</button>
         </div>
         <ul>
-          <li><a href="#proposal" class="nav-link">Proposal Creation</a></li>
-          <li><a href="#editor" class="nav-link">Proposal Editor</a></li>
-          <li><a href="#financing" class="nav-link">Financing Selection</a></li>
-          <li><a href="#calculator" class="nav-link">Monthly Cost Calculator</a></li>
-          <li><a href="#adjust" class="nav-link">Cost Adjustment</a></li>
-          <li><a href="#handoff" class="nav-link">Contractor Handoff</a></li>
+          <li><a href="#login" class="nav-link">Login</a></li>
+          <li><a href="#sales" class="nav-link" style="display:none">Sales Dashboard</a></li>
+          <li><a href="#sales-projects" class="nav-link" style="display:none">My Projects</a></li>
+          <li><a href="#proposal" class="nav-link" style="display:none">Proposal Creation</a></li>
+          <li><a href="#editor" class="nav-link" style="display:none">Proposal Editor</a></li>
+          <li><a href="#financing" class="nav-link" style="display:none">Financing Selection</a></li>
+          <li><a href="#calculator" class="nav-link" style="display:none">Monthly Cost Calculator</a></li>
+          <li><a href="#adjust" class="nav-link" style="display:none">Cost Adjustment</a></li>
+          <li><a href="#handoff" class="nav-link" style="display:none">Contractor Handoff</a></li>
+          <li><a href="#finance" class="nav-link" style="display:none">Finance Dashboard</a></li>
           <li><hr/></li>
           <li class="nav-group">
             <div class="group-title" id="group-contractor" data-collapsible><span class="caret">▾</span> Contractor</div>
             <ul class="group-list">
-              <li><a href="#contractor" id="nav-contractor" class="nav-link indent" title="Contractor Home"><span class="nav-ic">🏠</span><span class="nav-label">Home</span><span class="nav-badge" id="badge-ctr"></span></a></li>
+              <li><a href="#contractor" id="nav-contractor" class="nav-link indent" title="Contractor Home" style="display:none"><span class="nav-ic">🏠</span><span class="nav-label">Home</span><span class="nav-badge" id="badge-ctr"></span></a></li>
             </ul>
           </li>
         </ul>
@@ -49,6 +54,29 @@
           <button class="btn sm" id="back-home">← Contractor Home</button>
           <button class="btn sm" id="back-board">← Board</button>
         </div>
+        <!-- Login -->
+        <section id="login" class="route">
+          <div class="layout onecol">
+            <div class="card" style="max-width:520px">
+              <h2>Login</h2>
+              <form id="login-form" class="form-grid">
+                <label>Name <input class="input" id="login-name" placeholder="Your name" required /></label>
+                <label>Role
+                  <select class="input" id="login-role">
+                    <option>Sales</option>
+                    <option>Contractor</option>
+                    <option>Finance</option>
+                    <option>Admin</option>
+                  </select>
+                </label>
+                <div class="row gap">
+                  <button class="btn primary" type="submit">Login</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </section>
+
         <!-- Contractor Home -->
         <section id="contractor" class="route" hidden>
           <div class="layout twocol-right">
@@ -140,7 +168,7 @@
           </div>
         </section>
         <!-- Proposal Creation & Integration -->
-        <section id="proposal" class="route">
+        <section id="proposal" class="route" hidden>
           <div class="layout twocol">
             <aside class="panel">
               <h2>Proposal Creation</h2>
@@ -166,6 +194,11 @@
                 <div class="kpi"><div class="label">Est. kWh/yr</div><div class="value" id="kpi-kwh">—</div></div>
                 <div class="kpi"><div class="label">Monthly Payment</div><div class="value" id="kpi-monthly">—</div></div>
                 <div class="kpi"><div class="label">Savings vs Utility</div><div class="value" id="kpi-savings">—</div></div>
+              </div>
+
+              <div class="card" id="lead-info" hidden>
+                <h3>Lead</h3>
+                <div id="lead-info-body">—</div>
               </div>
 
               <div class="card" id="preflight-card">
@@ -630,6 +663,137 @@
             </section>
           </div>
         </section>
+
+        <!-- Sales Dashboard -->
+        <section id="sales" class="route" hidden>
+          <div class="layout onecol">
+            <div class="row between" style="margin-bottom:6px">
+              <div>
+                <h2 style="margin:0">Lead Management Dashboard</h2>
+                <div class="muted">Monitor your solar lead pipeline and conversion metrics</div>
+              </div>
+              <div class="row gap">
+                <label style="display:flex;align-items:center;gap:6px">Window <select id="sd-window"><option value="30">30d</option><option value="90" selected>90d</option><option value="180">180d</option></select></label>
+                <label style="display:flex;align-items:center;gap:6px">User <select id="sd-user"><option value="all" selected>All</option></select></label>
+                <button class="btn" id="sd-refresh">Refresh</button>
+                <button class="btn primary" id="sd-new">New Lead</button>
+                <button class="btn" id="sd-followups">Follow-ups</button>
+              </div>
+            </div>
+              <div class="cards three" id="sd-tiles">
+              <div class="card kpi-tile tile blue" data-tile="total"><div class="tile-h"><div class="tile-title">Total Leads</div><span class="tile-ic"><svg viewBox="0 0 24 24"><path d="M16 14a4 4 0 10-8 0"/><circle cx="12" cy="7" r="3"/><path d="M3 20a7 7 0 0118 0"/></svg></span></div><div class="tile-value" id="sd-total">0</div><div class="tile-sub" id="sd-total-sub">0 today</div></div>
+              <div class="card kpi-tile tile green" data-tile="qualified"><div class="tile-h"><div class="tile-title">Qualified</div><span class="tile-ic"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></div><div class="tile-value" id="sd-qualified">0</div><div class="tile-sub" id="sd-qualified-sub">0.0% rate</div></div>
+              <div class="card kpi-tile tile orange" data-tile="appointments"><div class="tile-h"><div class="tile-title">Appointments</div><span class="tile-ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span></div><div class="tile-value" id="sd-appt">0</div><div class="tile-sub" id="sd-appt-sub">0.0% from qualified</div></div>
+              <div class="card kpi-tile tile purple" data-tile="new"><div class="tile-h"><div class="tile-title">New Leads</div><span class="tile-ic"><svg viewBox="0 0 24 24"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="10"/></svg></span></div><div class="tile-value" id="sd-new-count">0</div><div class="tile-sub" id="sd-new-sub">Awaiting qualification</div></div>
+              <div class="card kpi-tile tile green" data-tile="converted"><div class="tile-h"><div class="tile-title">Converted</div><span class="tile-ic"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></span></div><div class="tile-value" id="sd-conv">0</div><div class="tile-sub" id="sd-conv-sub">0.0% of 0</div></div>
+            </div>
+
+            <div class="layout twocol">
+              <section class="panel">
+                <div class="card">
+                  <h3>Lead Status Breakdown</h3>
+                  <ul class="list" id="sd-breakdown"></ul>
+                </div>
+              </section>
+              <section class="panel">
+                <div class="card">
+                  <h3>Key Performance Indicators</h3>
+                  <div class="kpi-bars">
+                    <div class="kpi-bar krow ok"><span>Qualification Rate</span><div class="bar"><i id="sd-qual-rate" style="width:0%"></i><b id="sd-qual-rate-val">0.0%</b></div></div>
+                    <div class="kpi-bar krow warn"><span>Appointment Rate</span><div class="bar"><i id="sd-appt-rate" style="width:0%"></i><b id="sd-appt-rate-val">0.0%</b></div></div>
+                    <div class="kpi-bar krow danger"><span>Disqualification Rate</span><div class="bar"><i id="sd-disq-rate" style="width:0%"></i><b id="sd-disq-rate-val">0.0%</b></div></div>
+                  </div>
+                </div>
+              </section>
+            </div>
+            <div class="card">
+              <h3>Leads</h3>
+              <table class="table" id="sd-table">
+                <thead><tr><th>ID</th><th>Name</th><th>User</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Sales: My Projects (read-only) -->
+        <section id="sales-projects" class="route" hidden>
+          <div class="layout onecol">
+            <div class="row between" style="margin-bottom:6px">
+              <div>
+                <h2 style="margin:0">My Projects</h2>
+                <div class="muted">Read-only view of jobs you originated</div>
+              </div>
+            </div>
+            <div id="sales-projects-root"></div>
+          </div>
+        </section>
+
+        <!-- Finance Dashboard -->
+        <section id="finance" class="route" hidden>
+          <div class="layout onecol">
+            <div class="row between" style="margin-bottom:6px">
+              <div>
+                <h2 style="margin:0">Finance Dashboard</h2>
+                <div class="muted">Approve or reject submitted proposals</div>
+              </div>
+              <div class="row gap">
+                <button class="btn" id="fin-refresh">Refresh</button>
+              </div>
+            </div>
+            <div class="card">
+              <h3>Pending Approvals</h3>
+              <table class="table" id="fin-pending">
+                <thead><tr><th>ID</th><th>Lead</th><th>Assigned</th><th>Submitted</th><th>Actions</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="card">
+              <h3>Recent Decisions</h3>
+              <ul class="list" id="fin-recent"></ul>
+            </div>
+          </div>
+        </section>
+        <!-- Modal: New Lead -->
+        <div id="modal-new-lead" class="modal" hidden>
+          <div class="modal-card">
+            <div class="row between"><h3 style="margin:0">Create New Lead</h3><button class="btn sm" id="ml-close">✕</button></div>
+            <form id="new-lead-form" class="form-grid" style="margin-top:12px">
+              <label>Name <input class="input" name="name" required /></label>
+              <label>Phone <input class="input" name="phone" /></label>
+              <label>Email <input class="input" name="email" type="email" /></label>
+              <label>Address <input class="input" name="address" /></label>
+              <label>Source 
+                <select class="input" name="source">
+                  <option>Web</option>
+                  <option>Referral</option>
+                  <option>Event</option>
+                  <option>Other</option>
+                </select>
+              </label>
+              <label>Assign To
+                <select class="input" name="user">
+                  <option>Alex</option>
+                  <option>Sam</option>
+                  <option>Riley</option>
+                </select>
+              </label>
+              <label>Notes <input class="input" name="notes" /></label>
+              <div class="row gap" style="margin-top:8px">
+                <button type="button" class="btn" id="ml-cancel">Cancel</button>
+                <button type="submit" class="btn primary">Create Lead</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Modal: Follow-ups -->
+        <div id="modal-followups" class="modal" hidden>
+          <div class="modal-card">
+            <div class="row between"><h3 style="margin:0">Follow-ups (stale > 7 days)</h3><button class="btn sm" id="fu-close">✕</button></div>
+            <ul class="list" id="fu-list" style="margin-top:12px"></ul>
+          </div>
+        </div>
 
         <!-- Cost Adjustment -->
         <section id="adjust" class="route" hidden>
