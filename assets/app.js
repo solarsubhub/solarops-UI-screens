@@ -1,9 +1,9 @@
 // Simple hash router
 const routes = [
   "login","proposal","editor","financing","calculator","adjust","handoff",
-  "survey","cad","trueup","permitting","install","inspection","pto","turnon","commissioning","pipeline","contractor","sales","finance","sales-projects"
+  "ntp","survey","cad","trueup","permitting","ordering","install","inspection","pto","turnon","commissioning","pipeline","contractor","sales","finance","sales-projects"
 ];
-const stageRoutes = ["survey","cad","trueup","permitting","install","inspection","pto","turnon","commissioning"]; 
+const stageRoutes = ["ntp","survey","cad","trueup","permitting","ordering","install","inspection","pto","turnon","commissioning","blocked"]; 
 let lastContractorTab = 'c-overview';
 let nextContractorTab = null; // used for back-to-board flow
 function showRoute(id){
@@ -15,6 +15,12 @@ function showRoute(id){
     a.classList.toggle('active', a.getAttribute('href') === `#${id}`);
   });
   updateBackbar();
+  // ensure viewport is at top when switching routes
+  const c = document.querySelector('.content');
+  try{ window.scrollTo({top:0,left:0,behavior:'auto'}); }catch{}
+  if(c){ c.scrollTop = 0; c.scrollTo?.({top:0,left:0,behavior:'auto'}); }
+  // also nudge after paint to override any late reflows
+  requestAnimationFrame(()=>{ try{ window.scrollTo(0,0); if(c){ c.scrollTop=0; } }catch{} });
 }
 function updateBackbar(){
   const back = document.getElementById('backbar'); if(!back) return;
@@ -122,6 +128,10 @@ const appState = {
   monthly: 132,
   capex: 21500,
   util: 180,
+  commissionRules: {
+    sales: { type: 'percent', value: 0.05 }, // 5% of capex
+    installer: { type: 'fixed', value: 800 } // $800 fixed
+  },
   user: (()=>{ try{return JSON.parse(localStorage.getItem('ssh_user')||'null');}catch{return null;} })()
 };
 
@@ -545,6 +555,95 @@ document.getElementById('survey-schedule')?.addEventListener('click',()=>{
   const d = document.getElementById('survey-date').value || '(date)';
   toast(`Survey scheduled for ${d}`);
 });
+// Survey photo upload (opens native file/folder picker and shows thumbnails)
+function initSurveyUploads(){
+  const btnPhotos = document.getElementById('survey-add-photos');
+  const btnFolder = document.getElementById('survey-add-folder');
+  const inputPhotos = document.getElementById('survey-photos');
+  const inputFolder = document.getElementById('survey-folder');
+  const list = document.getElementById('survey-photo-list');
+  if(!btnPhotos || !btnFolder || !inputPhotos || !inputFolder || !list) return;
+  btnPhotos.addEventListener('click',()=> inputPhotos.click());
+  btnFolder.addEventListener('click',()=> inputFolder.click());
+  function addFiles(files){
+    const maxThumbs = 60; // plenty for survey
+    const toAdd = Math.min(files.length, maxThumbs - list.children.length);
+    for(let i=0;i<toAdd;i++){
+      const f = files[i]; if(!f.type?.startsWith('image/')) continue;
+      const url = URL.createObjectURL(f);
+      const div = document.createElement('div'); div.className = 'thumb';
+      const safeName = (f.name||'').replace(/[<>&]/g, c=>({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
+      div.innerHTML = `<img src="${url}" alt=""/><button class=\"remove\" title=\"Remove\">✕</button><div class=\"name\" title=\"${safeName}\">${safeName}</div>`;
+      div.querySelector('.remove').addEventListener('click',()=>{ URL.revokeObjectURL(url); div.remove(); });
+      list.appendChild(div);
+    }
+    if(toAdd<files.length){ toast(`Showing first ${toAdd} photos`); }
+  }
+  inputPhotos.addEventListener('change',(e)=>{ addFiles(e.target.files||[]); inputPhotos.value = ''; });
+  inputFolder.addEventListener('change',(e)=>{ addFiles(e.target.files||[]); inputFolder.value = ''; });
+}
+// Initialize once on load (elements are present even if route hidden)
+initSurveyUploads();
+// Installation uploads (category-based)
+function bindUploadGroup(key){
+  const btn = document.querySelector(`[data-up="${key}"]`);
+  const input = document.getElementById(`up-${key}`);
+  const list = document.getElementById(`u-${key}`);
+  if(!btn || !input || !list) return;
+  btn.addEventListener('click',()=> input.click());
+  function addFiles(files){
+    const maxThumbs = 80;
+    const toAdd = Math.min(files.length, maxThumbs - list.children.length);
+    for(let i=0;i<toAdd;i++){
+      const f = files[i]; if(!f.type?.startsWith('image/')) continue;
+      const url = URL.createObjectURL(f);
+      const safeName = (f.name||'').replace(/[<>&]/g, c=>({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
+      const div = document.createElement('div'); div.className = 'thumb';
+      div.innerHTML = `<img src="${url}" alt=""/><button class=\"remove\" title=\"Remove\">✕</button><div class=\"name\" title=\"${safeName}\">${safeName}</div>`;
+      div.querySelector('.remove').addEventListener('click',()=>{ URL.revokeObjectURL(url); div.remove(); });
+      list.appendChild(div);
+    }
+    if(toAdd<files.length){ toast(`Showing first ${toAdd} photos for ${key}`); }
+  }
+  input.addEventListener('change',(e)=>{ addFiles(e.target.files||[]); input.value=''; });
+}
+function initInstallUploads(){
+  ['panels','battery','roof','subpanel','serials'].forEach(bindUploadGroup);
+}
+initInstallUploads();
+// OCR: extract serial numbers from images in the "serials" group using Tesseract.js
+async function extractSerialsFromThumbs(){
+  if(!window.Tesseract){ toast('OCR engine not loaded'); return; }
+  const thumbs = document.querySelectorAll('#u-serials .thumb img');
+  if(thumbs.length===0){ toast('Add serial photos first'); return; }
+  const out = document.getElementById('serials-output'); if(out) out.innerHTML = '';
+  toast('Scanning serial photos…');
+  const results = new Set();
+  for(const img of thumbs){
+    try{
+      const { data } = await Tesseract.recognize(img.src, 'eng', {
+        tessedit_char_blacklist: 'abcdefghijklmnopqrstuvwxyz',
+        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/_',
+      });
+      const text = (data?.text||'').toUpperCase();
+      // Heuristics: capture tokens that look like serials: 8-24 chars, alnum + -/_
+      const matches = text.match(/[A-Z0-9][A-Z0-9\-/_]{6,22}[A-Z0-9]/g) || [];
+      matches.forEach(m=> results.add(m));
+    }catch(e){ /* ignore individual errors */ }
+  }
+  if(results.size===0){ toast('No serial numbers detected'); }
+  const ul = document.getElementById('serials-output');
+  if(ul){
+    ul.innerHTML = '';
+    [...results].slice(0,100).forEach(s=>{ const li=document.createElement('li'); li.textContent = s; ul.appendChild(li); });
+  }
+  toast(`OCR complete (${results.size} found)`);
+}
+document.getElementById('scan-serials')?.addEventListener('click', extractSerialsFromThumbs);
+document.getElementById('clear-serials')?.addEventListener('click', ()=>{ const ul=document.getElementById('serials-output'); if(ul) ul.innerHTML=''; });
+// NTP buttons
+document.getElementById('ntp-complete')?.addEventListener('click',()=>{ const j=ensureJobSelected(); if(!j) return; setStage(j,'survey'); toast('NTP complete → Site Survey'); });
+document.getElementById('ntp-denied')?.addEventListener('click',()=>{ const j=ensureJobSelected(); if(!j) return; setStage(j,'blocked'); toast('NTP denied → Blocked'); });
 
 // CAD actions
 document.getElementById('cad-upload')?.addEventListener('click',()=>{
@@ -554,6 +653,7 @@ document.getElementById('cad-upload')?.addEventListener('click',()=>{
   ul.appendChild(li); toast('Uploaded new plan set (placeholder)');
 });
 document.getElementById('cad-approve')?.addEventListener('click',()=> toast('Approved for True Up'));
+document.getElementById('cad-next')?.addEventListener('click',()=>{ const j=ensureJobSelected(); if(!j) return; const ok=document.getElementById('design-complete')?.checked; if(!ok){ toast('Complete design first'); return;} setStage(j,'trueup'); });
 
 // Change order totals
 function recomputeCO(){
@@ -576,12 +676,16 @@ document.getElementById('rfi-add')?.addEventListener('click',()=>{
   li.textContent = txt.value; document.getElementById('rfi-list').appendChild(li);
   txt.value='';
 });
+// Trueup proceed
+document.getElementById('trueup-next')?.addEventListener('click',()=>{ const j=ensureJobSelected(); if(!j) return; const ok=document.getElementById('trueup-proceed')?.checked; if(!ok){ toast('Check Proceed first'); return;} setStage(j,'permitting'); });
 
 // Installation save
 document.getElementById('install-save')?.addEventListener('click',()=>{
   const d = document.getElementById('install-date').value || '(date)';
   toast(`Installation saved for ${d}`);
 });
+document.getElementById('install-complete')?.addEventListener('click',()=>{ const j=ensureJobSelected(); if(!j) return; setStage(j,'inspection'); });
+document.getElementById('install-resched')?.addEventListener('click',()=> toast('Installation rescheduled'));
 
 // Inspection
 document.getElementById('insp-schedule')?.addEventListener('click',()=>{
@@ -592,11 +696,13 @@ document.getElementById('punch-add')?.addEventListener('click',()=>{
   const txt = document.getElementById('punch-text'); if(!txt.value.trim()) return;
   const li = document.createElement('li'); li.textContent = txt.value; document.getElementById('punch-list').appendChild(li); txt.value='';
 });
-document.getElementById('insp-pass')?.addEventListener('click',()=> toast('Inspection passed'));
-document.getElementById('insp-fail')?.addEventListener('click',()=> toast('Inspection failed – punch list updated'));
+document.getElementById('insp-pass')?.addEventListener('click',()=>{ const j=ensureJobSelected(); if(!j) return; setStage(j,'pto'); toast('Inspection passed → PTO'); });
+document.getElementById('insp-fail')?.addEventListener('click',()=>{ const j=ensureJobSelected(); if(!j) return; const reason = document.getElementById('insp-reason')?.value||''; j.inspFailReason = reason; setStage(j,'install'); toast('Inspection failed – back to Installation'); });
 
 // PTO
 document.getElementById('pto-mark')?.addEventListener('click',()=> toast('PTO received'));
+document.getElementById('pto-approve-btn')?.addEventListener('click',()=>{ const j=ensureJobSelected(); if(!j) return; const ok=document.getElementById('pto-approved')?.checked; if(!ok){ toast('Mark Approved first'); return;} const d=document.getElementById('pto-turnon-date')?.value; if(!d){ toast('Set Turn-On date'); return;} j.turnOnDate = d; setStage(j,'turnon'); });
+document.getElementById('pto-resubmit')?.addEventListener('click',()=>{ const j=ensureJobSelected(); if(!j) return; setStage(j,'install'); toast('PTO Not Approved → Back to Installation'); });
 
 // Turn-on telemetry
 document.getElementById('telemetry-run')?.addEventListener('click',()=>{
@@ -604,13 +710,102 @@ document.getElementById('telemetry-run')?.addEventListener('click',()=>{
   const kwh = (4 + Math.random()*3).toFixed(1);
   document.getElementById('telemetry').textContent = `${w} W / ${kwh} kWh today`;
 });
+document.getElementById('turnon-set')?.addEventListener('click',()=>{ const j=ensureJobSelected(); if(!j) return; const d=document.getElementById('turnon-date')?.value; if(!d){ toast('Pick a date'); return;} j.turnOnDate = d; setStage(j,'commissioning'); renderCommissioning(); toast('Turn-On date set → Commissioning'); });
+
+// Permitting gating
+document.getElementById('perm-next')?.addEventListener('click',()=>{
+  const j = ensureJobSelected(); if(!j) return;
+  const init = document.getElementById('perm-init')?.checked;
+  const all = document.getElementById('perm-all')?.checked;
+  if(!init){ toast('Mark Permitting as Initiated'); return; }
+  if(!all){ toast('All Permits must be Approved'); return; }
+  setStage(j,'ordering');
+});
+
+// Ordering events & gating
+document.getElementById('ord-add')?.addEventListener('click',()=>{
+  const j = ensureJobSelected(); if(!j) return;
+  const name = (document.getElementById('ord-name')?.value||'').trim();
+  const qty = Number(document.getElementById('ord-qty')?.value||'1');
+  if(!name){ toast('Enter an item name'); return; }
+  j.orders = j.orders || [];
+  j.orders.push({name, qty, status:'Pending', received:false});
+  document.getElementById('ord-name').value = '';
+  document.getElementById('ord-qty').value = '1';
+  renderOrdering();
+  toast('Item added');
+});
+// Handle per-item received toggles
+document.body.addEventListener('change',(e)=>{
+  const inp = e.target;
+  if(!(inp instanceof HTMLInputElement)) return;
+  if(!inp.hasAttribute('data-ord-rec')) return;
+  const j = ensureJobSelected(); if(!j) return;
+  const idx = Number(inp.getAttribute('data-ord-rec'));
+  if(!isFinite(idx) || !j.orders || !j.orders[idx]) return;
+  j.orders[idx].received = inp.checked;
+  j.orders[idx].status = inp.checked ? 'Received' : 'Pending';
+  // Auto-check All Orders if all received
+  const all = j.orders.length>0 && j.orders.every(x=>x.received);
+  const allChk = document.getElementById('ord-all'); if(allChk) allChk.checked = all;
+  renderOrdering();
+});
+document.getElementById('ord-next')?.addEventListener('click',()=>{
+  const j = ensureJobSelected(); if(!j) return;
+  const all = document.getElementById('ord-all')?.checked;
+  if(!j.orders || j.orders.length===0){ toast('Add at least one order'); return; }
+  if(!all){ toast('Mark All Orders Received'); return; }
+  setStage(j,'install');
+});
+
+// --------- Job context & helpers ----------
+function getCurrentJob(){ return jobs.find(j=> j.id === appState.currentJobId); }
+function ensureJobSelected(){ const j = getCurrentJob(); if(!j){ toast('Select a job from the board first'); } return j; }
+function setStage(job, stage){ job.stage = stage; renderAllKanbans(); location.hash = `#${stage}`; }
+
+// Commissioning compute & render
+function computeCommissioning(job){
+  const capex = job.capex || appState.capex || 20000;
+  const calc = (rule)=> rule?.type==='percent' ? Math.round(capex * (rule.value||0)) : Math.round(rule?.value||0);
+  const sales = calc(appState.commissionRules.sales);
+  const inst = calc(appState.commissionRules.installer);
+  return {sales, inst, total: sales+inst};
+}
+function renderCommissioning(){
+  const job = getCurrentJob(); if(!job) return;
+  const {sales, inst, total} = computeCommissioning(job);
+  setText('comm-sales', `$${sales}`);
+  setText('comm-inst', `$${inst}`);
+  setText('comm-total', `$${total}`);
+}
+
+// Ordering: render per job
+function renderOrdering(){
+  const job = getCurrentJob(); if(!job) return;
+  job.orders = job.orders || [];
+  const tbody = document.querySelector('#ord-table tbody'); if(!tbody) return;
+  tbody.innerHTML = '';
+  job.orders.forEach((o,i)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${o.name}</td><td>${o.qty}</td>
+      <td><input type="checkbox" data-ord-rec="${i}" ${o.received?'checked':''}/></td>
+      <td>${o.status|| (o.received?'Received':'Pending')}</td>`;
+    tbody.appendChild(tr);
+  });
+  // sync All Orders checkbox
+  const all = job.orders.length>0 && job.orders.every(x=>x.received);
+  const allChk = document.getElementById('ord-all'); if(allChk) allChk.checked = all;
+}
 
 // --------- Kanban Pipeline ----------
 const PIPE_STAGES = [
+  {id:'ntp', title:'NTP', wip:10},
+  {id:'blocked', title:'Blocked', wip:999},
   {id:'survey', title:'Site Survey', wip:5},
-  {id:'cad', title:'CAD', wip:6},
+  {id:'cad', title:'Design Plans', wip:6},
   {id:'trueup', title:'True Up', wip:5},
   {id:'permitting', title:'Permitting', wip:8},
+  {id:'ordering', title:'Ordering Material', wip:8},
   {id:'install', title:'Installation', wip:6},
   {id:'inspection', title:'Inspection', wip:5},
   {id:'pto', title:'PTO', wip:7},
@@ -644,6 +839,7 @@ function renderKanbanAt(rootId, filterId, contractorId){
         <select class="move-select" data-id="${j.id}">${options}</select></div>`;
       card.addEventListener('dragstart', ev=>{ card.classList.add('dragging'); ev.dataTransfer.setData('text/plain', j.id); });
       card.addEventListener('dragend', ()=> card.classList.remove('dragging'));
+      card.addEventListener('click', ()=>{ appState.currentJobId = j.id; location.hash = '#' + j.stage; toast(`Selected ${j.id}`); });
       wrap.appendChild(card);
     });
     const countEl = col.querySelector('[data-count]');
@@ -717,6 +913,8 @@ window.addEventListener('hashchange',()=>{
   if(location.hash==='#calculator') applyDefaultsToCalculator();
   if(location.hash==='#proposal') initProposal();
   if(location.hash==='#handoff') applyHandoffDefaults();
+  if(location.hash==='#ordering') renderOrdering();
+  if(location.hash==='#commissioning') renderCommissioning();
   if(location.hash==='#sales-projects') renderSalesProjects();
   if(location.hash==='#editor') renderVersionList();
 });
@@ -726,6 +924,8 @@ if(location.hash==='#financing') applyDefaultsToFinancing();
 if(location.hash==='#calculator') applyDefaultsToCalculator();
 if(location.hash==='#proposal' || location.hash==='') initProposal();
 if(location.hash==='#handoff') applyHandoffDefaults();
+if(location.hash==='#ordering') renderOrdering();
+if(location.hash==='#commissioning') renderCommissioning();
 if(location.hash==='#sales-projects') renderSalesProjects();
 if(location.hash==='#editor') renderVersionList();
 
@@ -792,6 +992,12 @@ function updateNavBadges(){
   const total = jobs.length;
   const pipe = document.getElementById('badge-pipe'); if(pipe) pipe.textContent = String(total);
   const ctr = document.getElementById('badge-ctr'); if(ctr) ctr.textContent = String(total);
+  const salesBadge = document.getElementById('badge-sales');
+  if(salesBadge){
+    const me = appState.user?.name||'';
+    const mine = jobs.filter(j=> j.sales===me).length;
+    salesBadge.textContent = String(mine);
+  }
 }
 
 // --------- Sales Dashboard ----------
@@ -896,17 +1102,28 @@ document.getElementById('new-lead-form')?.addEventListener('submit',(e)=>{
   e.preventDefault();
   const fd = new FormData(e.target);
   const id = 'L-'+Math.floor(1000+Math.random()*9000);
+  // Validation: name, TCPA, and either avg bill or usage
+  const fullname = (fd.get('fullname')||'').toString().trim();
+  const tcpa = !!fd.get('tcpa');
+  const avgBill = Number(fd.get('avgBill')||0);
+  const usage12 = Number(fd.get('usage12')||0);
+  if(!fullname){ toast('Enter full name'); return; }
+  if(!tcpa){ toast('TCPA consent required'); return; }
+  if(!(avgBill>0 || usage12>0)){ toast('Provide avg bill or 12 months usage'); return; }
+  const userAssign = appState.user?.name || 'Alex';
   leads.push({
     id,
-    user: fd.get('user')||'Alex',
+    user: userAssign,
     created: new Date(),
     status:'new',
-    name: fd.get('name')||'',
+    name: fullname,
     phone: fd.get('phone')||'',
     email: fd.get('email')||'',
-    address: fd.get('address')||'',
-    source: fd.get('source')||'Web',
-    notes: fd.get('notes')||''
+    address: fd.get('serviceAddress')||'',
+    utility: fd.get('utility')||'Other',
+    avgBill: avgBill||null,
+    usage12: usage12||null,
+    tcpa: true
   });
   saveJSON('ssh_leads', leads);
   renderSales();
@@ -943,6 +1160,51 @@ function showFollowups(){
 }
 document.getElementById('fu-close')?.addEventListener('click', ()=> document.getElementById('modal-followups').hidden = true);
 document.getElementById('sd-followups')?.addEventListener('click', showFollowups);
+// Qualify modal handlers
+function hideQualifyModal(){ const m=document.getElementById('modal-qualify'); if(m) m.hidden = true; }
+document.getElementById('ql-close')?.addEventListener('click', hideQualifyModal);
+document.getElementById('ql-cancel')?.addEventListener('click', hideQualifyModal);
+document.getElementById('modal-qualify')?.addEventListener('click',(e)=>{ if(e.target.id==='modal-qualify') hideQualifyModal(); });
+document.getElementById('qualify-form')?.addEventListener('submit',(e)=>{
+  e.preventDefault();
+  const id = document.getElementById('ql-id').value;
+  const l = leads.find(x=>x.id===id); if(!l) return;
+  const reason = document.getElementById('ql-reason').value;
+  const date = document.getElementById('ql-date').value;
+  const time = document.getElementById('ql-time').value;
+  const notes = document.getElementById('ql-notes').value;
+  // Criteria
+  const bill = Number(document.getElementById('ql-bill').value||0);
+  const roofType = document.getElementById('ql-roof-type').value||'';
+  const roofAge = Number(document.getElementById('ql-roof-age').value||0);
+  const shade = document.getElementById('ql-shade').value||'';
+  const own = document.getElementById('ql-own').value||'';
+  const finance = document.getElementById('ql-finance').value||'Yes';
+  const creditScore = Number(document.getElementById('ql-creditscore').value||0);
+  const unmet = [];
+  if(bill < 100) unmet.push('Monthly bill < $100');
+  if(!(roofType==='Shingle' || roofType==='Tile')) unmet.push('Roof type not Shingle/Tile');
+  if(roofAge > 12) unmet.push('Roof age > 12y');
+  if(shade !== 'None') unmet.push('Shade not None');
+  if(own !== 'Owner') unmet.push('Not homeowner');
+  if(finance === 'Yes' && creditScore < 650) unmet.push('Credit < 650');
+  if(unmet.length){
+    toast('Cannot qualify: ' + unmet.join(', '));
+    return;
+  }
+  l.status = 'qualified';
+  l.qual = {
+    reason,
+    appointment: (date||time)? `${date||''}${time?('T'+time):''}` : '',
+    notes,
+    criteria: { bill, roofType, roofAge, shade, own, finance, creditScore }
+  };
+  if(!date) l.nextContact = new Date(Date.now()+3*24*60*60*1000).toISOString();
+  saveJSON('ssh_leads', leads);
+  hideQualifyModal();
+  renderSales();
+  toast(`${id} qualified`);
+});
 document.body.addEventListener('click',(e)=>{
   const done = e.target.closest('[data-fu-done]');
   if(done){
@@ -967,12 +1229,33 @@ document.body.addEventListener('click',(e)=>{
   const fu = e.target.closest('[data-action="lead-follow"]');
   const sf = e.target.closest('[data-action="lead-submit"]');
   if(qa){
-    const id = qa.dataset.id; const l = leads.find(x=>x.id===id); if(l){ l.status='qualified'; saveJSON('ssh_leads', leads); toast(`${id} qualified`); renderSales(); }
+    const id = qa.dataset.id; const l = leads.find(x=>x.id===id);
+    if(!l) return;
+    const m = document.getElementById('modal-qualify'); if(!m) return;
+    document.getElementById('ql-id').value = id;
+    document.getElementById('ql-reason').value = 'Meets criteria';
+    document.getElementById('ql-date').value = '';
+    document.getElementById('ql-time').value = '';
+    // seed criteria defaults
+    const setVal = (id,val)=>{ const el=document.getElementById(id); if(el) el.value = val; };
+    setVal('ql-bill','150');
+    setVal('ql-roof-type','Shingle');
+    setVal('ql-roof-age','8');
+    setVal('ql-shade','None');
+    setVal('ql-own','Owner');
+    setVal('ql-finance','Yes');
+    setVal('ql-creditscore','700');
+    document.getElementById('ql-notes').value = '';
+    m.hidden = false;
     return;
   }
   if(sp){
     const id = sp.dataset.id; const l = leads.find(x=>x.id===id);
-    if(l){ appState.currentLead = {id:l.id, name:l.name, email:l.email||'', address:l.address||'', user:l.user||''}; document.querySelector('.crumbs').textContent = `Customer • ${l.name||l.id}`; }
+    if(l){
+      appState.currentLead = {id:l.id, name:l.name, email:l.email||'', address:l.address||'', user:l.user||''};
+      const crumb = document.querySelector('.crumbs');
+      if(crumb) crumb.textContent = `Customer • ${l.name||l.id}`;
+    }
     location.hash = '#proposal';
     return;
   }

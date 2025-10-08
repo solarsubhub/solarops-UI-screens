@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Solar Sub Hub – Clickable Prototype</title>
     <link rel="stylesheet" href="assets/styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
   </head>
   <body>
     <header class="app-header">
@@ -13,10 +14,7 @@
         <h1>Solar Sub Hub</h1>
       </div>
       <div class="context">
-        <div class="crumbs">Customer • Proposal ID: P-000123</div>
         <div class="actions">
-          <button class="btn ghost" data-action="save-version" style="display:none">Save Version</button>
-          <button class="btn primary" data-action="export-pdf" style="display:none">Export PDF</button>
           <button class="btn" id="logout-btn" hidden>Logout</button>
         </div>
       </div>
@@ -31,7 +29,7 @@
         <ul>
           <li><a href="#login" class="nav-link">Login</a></li>
           <li><a href="#sales" class="nav-link" style="display:none">Sales Dashboard</a></li>
-          <li><a href="#sales-projects" class="nav-link" style="display:none">My Projects</a></li>
+          <li><a href="#sales-projects" class="nav-link" style="display:none">My Projects <span class="nav-badge" id="badge-sales"></span></a></li>
           <li><a href="#proposal" class="nav-link" style="display:none">Proposal Creation</a></li>
           <li><a href="#editor" class="nav-link" style="display:none">Proposal Editor</a></li>
           <li><a href="#financing" class="nav-link" style="display:none">Financing Selection</a></li>
@@ -299,8 +297,13 @@
             <section class="panel">
               <div class="card">
                 <h3>Uploads</h3>
-                <p>Use camera to add photos; for prototype this is a placeholder.</p>
-                <button class="btn">Add Photos</button>
+                <div class="row gap">
+                  <button class="btn" id="survey-add-photos">Add Photos</button>
+                  <button class="btn" id="survey-add-folder">Add Folder</button>
+                </div>
+                <input type="file" id="survey-photos" accept="image/*" multiple hidden />
+                <input type="file" id="survey-folder" accept="image/*" webkitdirectory directory multiple hidden />
+                <div id="survey-photo-list" class="thumbs"></div>
               </div>
               <div class="card">
                 <h3>Notes</h3>
@@ -310,13 +313,30 @@
             </section>
           </div>
         </section>
+        
+        <!-- NTP (Notice to Proceed) -->
+        <section id="ntp" class="route" hidden>
+          <div class="layout onecol">
+            <div class="card">
+              <h2>NTP – Notice to Proceed</h2>
+              <div class="row gap">
+                <label class="chip"><input type="checkbox" id="ntp-initiated"/> NTP Initiated</label>
+                <label class="chip"><input type="checkbox" id="ntp-inproc"/> In Process</label>
+              </div>
+              <div class="row gap" style="margin-top:8px">
+                <button class="btn success" id="ntp-complete">Good To Proceed → Site Survey</button>
+                <button class="btn" id="ntp-denied">Denied → End of Work</button>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <!-- CAD / Engineering -->
         <section id="cad" class="route" hidden>
           <div class="layout twocol">
             <aside class="panel">
               <div class="stage-header card">
-                <h2>CAD / Engineering</h2>
+                <h2>Design Plans</h2>
                 <div class="row gap"><span class="tag info">In Progress</span></div>
               </div>
               <div class="card">
@@ -326,6 +346,10 @@
                   <li data-check>Attachment detail</li>
                   <li data-check>Labeling plan</li>
                 </ul>
+              </div>
+              <div class="card">
+                <label class="chip"><input type="checkbox" id="design-complete"/> Design Completed</label>
+                <div class="row gap" style="margin-top:8px"><button class="btn primary" id="cad-next">Proceed to True Up</button></div>
               </div>
             </aside>
             <section class="panel">
@@ -369,6 +393,10 @@
                 <div class="row between"><strong>Total:</strong><strong id="co-sum">$550</strong></div>
                 <div class="row gap" style="margin-top:8px"><button class="btn">Preview CO</button><button class="btn primary">Send for E‑Sign</button></div>
               </div>
+              <div class="card">
+                <label class="chip"><input type="checkbox" id="trueup-proceed"/> Proceed</label>
+                <div class="row gap" style="margin-top:8px"><button class="btn primary" id="trueup-next">Next → Permitting</button></div>
+              </div>
             </section>
           </div>
         </section>
@@ -393,7 +421,38 @@
                 <ul id="rfi-list" class="list"><li>Provide roof load calc (posted by AHJ)</li></ul>
                 <div class="row gap"><input id="rfi-text" placeholder="Reply..."/><button class="btn" id="rfi-add">Post</button></div>
               </div>
-              <div class="card"><h3>Status</h3><p><span class="tag">Submitted</span> → <span class="tag">RFI</span> → <span class="tag success">Approved</span></p></div>
+              <div class="card"><h3>Status</h3>
+                <div class="row gap"><label class="chip"><input type="checkbox" id="perm-init"/> Initiated</label><label class="chip"><input type="checkbox" id="perm-all"/> All Permits Approved</label></div>
+                <div class="row gap" style="margin-top:8px"><button class="btn primary" id="perm-next">Next → Ordering Material</button></div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- Ordering Material -->
+        <section id="ordering" class="route" hidden>
+          <div class="layout twocol">
+            <aside class="panel">
+              <div class="card">
+                <h2>Ordering Material</h2>
+                <p>Enter all materials and track receipts.</p>
+                <label class="chip"><input type="checkbox" id="ord-all"/> All Orders Received</label>
+                <div class="row gap" style="margin-top:8px"><button class="btn primary" id="ord-next">Next → Installation</button></div>
+              </div>
+            </aside>
+            <section class="panel">
+              <div class="card">
+                <h3>Materials</h3>
+                <table class="table" id="ord-table">
+                  <thead><tr><th>Item</th><th>Qty</th><th>Received</th><th>Status</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+                <div class="row gap" style="margin-top:8px">
+                  <input id="ord-name" placeholder="Item"/>
+                  <input id="ord-qty" type="number" min="1" value="1" style="width:90px"/>
+                  <button class="btn" id="ord-add">Add</button>
+                </div>
+              </div>
             </section>
           </div>
         </section>
@@ -420,11 +479,35 @@
               <div class="card">
                 <h3>Install Checklist</h3>
                 <ul class="checklist">
-                  <li data-check>Attachments torqued</li>
-                  <li data-check>String map created</li>
-                  <li data-check>Labels applied</li>
-                  <li data-check>As‑built photos</li>
+                  <li data-check>Panels installed</li>
+                  <li data-check>Battery installed</li>
+                  <li data-check>Roof photos</li>
+                  <li data-check>Sub Panel photos</li>
+                  <li data-check>Serial numbers captured</li>
                 </ul>
+                <div class="row gap"><button class="btn success" id="install-complete">Complete → Inspection</button><button class="btn" id="install-resched">Reschedule</button></div>
+                <div style="margin-top:8px"><input id="install-reason" placeholder="If not feasible, enter reason"/></div>
+              </div>
+              <div class="card">
+                <h3>Upload Photos & Serial Numbers</h3>
+                <div class="row gap" style="flex-wrap:wrap">
+                  <div class="u-group"><div class="row gap"><strong>Panels</strong><button class="btn sm" data-up="panels">Add Photos</button></div><div class="thumbs" id="u-panels"></div></div>
+                  <div class="u-group"><div class="row gap"><strong>Battery</strong><button class="btn sm" data-up="battery">Add Photos</button></div><div class="thumbs" id="u-battery"></div></div>
+                  <div class="u-group"><div class="row gap"><strong>Roof</strong><button class="btn sm" data-up="roof">Add Photos</button></div><div class="thumbs" id="u-roof"></div></div>
+                  <div class="u-group"><div class="row gap"><strong>Sub Panel</strong><button class="btn sm" data-up="subpanel">Add Photos</button></div><div class="thumbs" id="u-subpanel"></div></div>
+                  <div class="u-group">
+                    <div class="row gap"><strong>Serial Numbers (Material)</strong><button class="btn sm" data-up="serials">Add Photos</button></div>
+                    <div class="thumbs" id="u-serials"></div>
+                    <div class="row gap" style="margin-top:8px"><button class="btn primary sm" id="scan-serials">Scan Serial Numbers (OCR)</button><button class="btn sm" id="clear-serials">Clear</button></div>
+                    <ul class="list" id="serials-output" style="margin-top:6px"></ul>
+                  </div>
+                </div>
+                <!-- hidden inputs for each group -->
+                <input type="file" id="up-panels" accept="image/*" multiple hidden />
+                <input type="file" id="up-battery" accept="image/*" multiple hidden />
+                <input type="file" id="up-roof" accept="image/*" multiple hidden />
+                <input type="file" id="up-subpanel" accept="image/*" multiple hidden />
+                <input type="file" id="up-serials" accept="image/*" multiple hidden />
               </div>
             </section>
           </div>
@@ -451,6 +534,7 @@
                 <ul id="punch-list" class="list"></ul>
                 <div class="row gap"><input id="punch-text" placeholder="Add punch item"/><button class="btn" id="punch-add">Add</button></div>
                 <div class="row gap" style="margin-top:8px"><button class="btn success" id="insp-pass">Mark Pass</button><button class="btn" id="insp-fail">Mark Fail</button></div>
+                <div style="margin-top:8px"><input id="insp-reason" placeholder="If failed, enter detailed reasons"/></div>
               </div>
             </section>
           </div>
@@ -470,13 +554,15 @@
                   <li data-check>Meter set date recorded</li>
                   <li data-check>PTO letter uploaded</li>
                 </ul>
+                <div class="row gap"><label class="chip"><input type="checkbox" id="pto-approved"/> Approved</label></div>
+                <div class="row gap" style="margin-top:8px"><input type="date" id="pto-turnon-date"/><button class="btn primary" id="pto-approve-btn">Approve & Set Turn-On</button><button class="btn" id="pto-resubmit">Not Approved – Resubmit</button></div>
               </div>
             </aside>
             <section class="panel">
               <div class="card">
                 <h3>Upload PTO Letter</h3>
                 <button class="btn">Upload</button>
-                <div class="row gap" style="margin-top:8px"><button class="btn primary" id="pto-mark">Mark PTO Received</button></div>
+                <div class="row gap" style="margin-top:8px"><button class="btn" id="pto-mark">Mark PTO Received</button></div>
               </div>
             </section>
           </div>
@@ -491,20 +577,21 @@
                 <div class="row gap"><span class="tag success">Ready</span></div>
               </div>
               <div class="card">
+                <label>Turn-On Date
+                  <input type="date" id="turnon-date" />
+                </label>
+                <div class="row gap"><button class="btn primary" id="turnon-set">Set Turn-On Date</button></div>
+              </div>
+              <div class="card">
                 <ul class="checklist">
                   <li data-check>App onboarding complete</li>
                   <li data-check>CTs calibrated</li>
                   <li data-check>Customer walkthrough</li>
                 </ul>
               </div>
-            </aside>
-            <section class="panel">
-              <div class="card">
-                <h3>Live Telemetry</h3>
-                <p id="telemetry">— W / — kWh today</p>
+              <div class="card"><h3>Commissioning Preview</h3><p>After Turn-On we will calculate commissioning in the next step.</p></div>
                 <button class="btn" id="telemetry-run">Simulate</button>
-              </div>
-            </section>
+              </aside>
           </div>
         </section>
 
@@ -518,8 +605,33 @@
               </div>
               <div class="card">
                 <h3>Commissions</h3>
-                <p>Sales: $1,200 • Installer: $800</p>
-                <button class="btn">Approve</button>
+                <p>Sales: <strong id="comm-sales">$0</strong> • Installer: <strong id="comm-inst">$0</strong></p>
+                <div>Total: <strong id="comm-total">$0</strong></div>
+                <div class="row gap" style="margin-top:8px"><button class="btn success">Approve</button></div>
+              </div>
+              <div class="card">
+                <h3>Commission Rules</h3>
+                <div class="form-grid">
+                  <label>Sales Type
+                    <select id="cr-sales-type">
+                      <option value="percent">Percent</option>
+                      <option value="fixed">Fixed</option>
+                    </select>
+                  </label>
+                  <label>Sales Value
+                    <input type="number" id="cr-sales-val" step="0.1" value="5" />
+                  </label>
+                  <label>Installer Type
+                    <select id="cr-inst-type">
+                      <option value="percent">Percent</option>
+                      <option value="fixed" selected>Fixed</option>
+                    </select>
+                  </label>
+                  <label>Installer Value
+                    <input type="number" id="cr-inst-val" step="1" value="800" />
+                  </label>
+                </div>
+                <div class="muted">Percent values represent % of CAPEX. Fixed values are in currency.</div>
               </div>
             </aside>
             <section class="panel">
@@ -673,8 +785,8 @@
                 <div class="muted">Monitor your solar lead pipeline and conversion metrics</div>
               </div>
               <div class="row gap">
-                <label style="display:flex;align-items:center;gap:6px">Window <select id="sd-window"><option value="30">30d</option><option value="90" selected>90d</option><option value="180">180d</option></select></label>
-                <label style="display:flex;align-items:center;gap:6px">User <select id="sd-user"><option value="all" selected>All</option></select></label>
+                <label hidden style="display:flex;align-items:center;gap:6px">Window <select id="sd-window"><option value="30">30d</option><option value="90" selected>90d</option><option value="180">180d</option></select></label>
+                <label hidden style="display:flex;align-items:center;gap:6px">User <select id="sd-user"><option value="all" selected>All</option></select></label>
                 <button class="btn" id="sd-refresh">Refresh</button>
                 <button class="btn primary" id="sd-new">New Lead</button>
                 <button class="btn" id="sd-followups">Follow-ups</button>
@@ -759,29 +871,113 @@
           <div class="modal-card">
             <div class="row between"><h3 style="margin:0">Create New Lead</h3><button class="btn sm" id="ml-close">✕</button></div>
             <form id="new-lead-form" class="form-grid" style="margin-top:12px">
-              <label>Name <input class="input" name="name" required /></label>
-              <label>Phone <input class="input" name="phone" /></label>
-              <label>Email <input class="input" name="email" type="email" /></label>
-              <label>Address <input class="input" name="address" /></label>
-              <label>Source 
-                <select class="input" name="source">
-                  <option>Web</option>
-                  <option>Referral</option>
-                  <option>Event</option>
+              <label>Full name
+                <input class="input" name="fullname" id="nl-fullname" placeholder="First Last" required />
+              </label>
+              <label>Phone (mobile preferred)
+                <input class="input" name="phone" id="nl-phone" placeholder="(555) 555-5555" />
+              </label>
+              <label>Email address
+                <input class="input" name="email" id="nl-email" type="email" placeholder="name@email.com" />
+              </label>
+              <label>Service address
+                <input class="input" name="serviceAddress" id="nl-address" placeholder="Street, City, State" />
+              </label>
+              <label>Utility provider
+                <select class="input" name="utility" id="nl-utility">
+                  <option>PG&E</option>
+                  <option>SCE</option>
+                  <option>SDG&E</option>
+                  <option>LADWP</option>
+                  <option>SMUD</option>
                   <option>Other</option>
                 </select>
               </label>
-              <label>Assign To
-                <select class="input" name="user">
-                  <option>Alex</option>
-                  <option>Sam</option>
-                  <option>Riley</option>
-                </select>
+              <label>Average electric bill ($)
+                <input class="input" type="number" min="0" step="1" name="avgBill" id="nl-bill" placeholder="e.g. 150" />
               </label>
-              <label>Notes <input class="input" name="notes" /></label>
+              <label>12 months usage (kWh)
+                <input class="input" type="number" min="0" step="1" name="usage12" id="nl-usage" placeholder="Optional if avg bill provided" />
+              </label>
+              <div style="grid-column:1/-1" class="row gap">
+                <label class="chip"><input type="checkbox" name="tcpa" id="nl-tcpa"/> I have TCPA consent (online or recorded verbal)</label>
+              </div>
               <div class="row gap" style="margin-top:8px">
                 <button type="button" class="btn" id="ml-cancel">Cancel</button>
                 <button type="submit" class="btn primary">Create Lead</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Modal: Qualify Lead -->
+        <div id="modal-qualify" class="modal" hidden>
+          <div class="modal-card">
+            <div class="row between"><h3 style="margin:0">Qualify Lead</h3><button class="btn sm" id="ql-close">✕</button></div>
+            <form id="qualify-form" class="form-grid" style="margin-top:12px">
+              <input type="hidden" id="ql-id" />
+              <label>Reason
+                <select class="input" id="ql-reason">
+                  <option>Meets criteria</option>
+                  <option>Good roof/usage</option>
+                  <option>Budget fit</option>
+                  <option>Other</option>
+                </select>
+              </label>
+              <label>Appointment Date
+                <input class="input" type="date" id="ql-date" />
+              </label>
+              <label>Appointment Time
+                <input class="input" type="time" id="ql-time" />
+              </label>
+              <div class="card" style="grid-column:1/-1">
+                <h4 style="margin:0 0 6px 0">Qualification Criteria</h4>
+                <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:8px">
+                  <label>Monthly Bill ($)
+                    <input class="input" type="number" id="ql-bill" min="0" placeholder="e.g. 150" />
+                  </label>
+                  <label>Roof Type
+                    <select class="input" id="ql-roof-type">
+                      <option>Shingle</option>
+                      <option>Tile</option>
+                      <option>Metal</option>
+                      <option>Flat</option>
+                    </select>
+                  </label>
+                  <label>Roof Age (years)
+                    <input class="input" type="number" id="ql-roof-age" min="0" placeholder="e.g. 8" />
+                  </label>
+                  <label>Shade
+                    <select class="input" id="ql-shade">
+                      <option>None</option>
+                      <option>Some</option>
+                      <option>Heavy</option>
+                    </select>
+                  </label>
+                  <label>Home Ownership
+                    <select class="input" id="ql-own">
+                      <option>Owner</option>
+                      <option>Renter</option>
+                    </select>
+                  </label>
+                  <label>Financing Needed
+                    <select class="input" id="ql-finance">
+                      <option>Yes</option>
+                      <option>No</option>
+                    </select>
+                  </label>
+                  <label>Credit Score
+                    <input class="input" type="number" id="ql-creditscore" min="300" max="850" placeholder="e.g. 700" />
+                  </label>
+                </div>
+                <small class="muted">Rule: Bill ≥ $100 • Roof type: Shingle/Tile • Roof age ≤ 12y • Shade: None • Ownership: Owner • If financing: credit ≥ 650</small>
+              </div>
+              <label>Notes
+                <textarea class="input" id="ql-notes" rows="3" placeholder="Any details…"></textarea>
+              </label>
+              <div class="row gap" style="margin-top:8px">
+                <button type="button" class="btn" id="ql-cancel">Cancel</button>
+                <button type="submit" class="btn primary">Mark Qualified</button>
               </div>
             </form>
           </div>
